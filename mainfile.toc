@@ -1,24 +1,35 @@
 \contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}%
 \contentsline {chapter}{\numberline {2}Background}{5}{chapter.2}%
 \contentsline {chapter}{\numberline {3}Related Work}{7}{chapter.3}%
-\contentsline {section}{\numberline {3.1}NIMEs}{7}{section.3.1}%
-\contentsline {subsection}{\numberline {3.1.1}Symbolic Approaches}{7}{subsection.3.1.1}%
-\contentsline {subsection}{\numberline {3.1.2}Machine Learning Approaches}{7}{subsection.3.1.2}%
-\contentsline {section}{\numberline {3.2}RNN Prediction Trees}{7}{section.3.2}%
-\contentsline {chapter}{\numberline {4}System Design}{9}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Design Overview}{9}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Prediction Trees}{9}{section.4.2}%
-\contentsline {subsection}{\numberline {4.2.1}Generating Prediction Trees}{9}{subsection.4.2.1}%
-\contentsline {subsection}{\numberline {4.2.2}Searching Prediction Trees}{9}{subsection.4.2.2}%
-\contentsline {section}{\numberline {4.3}Structural Parameters}{9}{section.4.3}%
-\contentsline {subsection}{\numberline {4.3.1}Subsection for each individual structural parameter}{9}{subsection.4.3.1}%
-\contentsline {section}{\numberline {4.4}Branch Heuristic}{10}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Human Interaction}{10}{section.4.5}%
-\contentsline {subsection}{\numberline {4.5.1}Tracking Structural Movement}{10}{subsection.4.5.1}%
-\contentsline {subsection}{\numberline {4.5.2}Structural Parameter User Interface}{10}{subsection.4.5.2}%
-\contentsline {section}{\numberline {4.6}Training New Structural Parameters}{10}{section.4.6}%
-\contentsline {chapter}{\numberline {5}Evaluation}{11}{chapter.5}%
-\contentsline {chapter}{\numberline {6}Future Work}{13}{chapter.6}%
-\contentsline {chapter}{\numberline {7}Conclusion}{15}{chapter.7}%
-\contentsline {chapter}{Bibliography}{17}{section*.1}%
+\contentsline {section}{\numberline {3.1}New Interfaces for Musical Expression (NIMEs)}{7}{section.3.1}%
+\contentsline {subsection}{\numberline {3.1.1}Real-Time Interactive NIMEs}{8}{subsection.3.1.1}%
+\contentsline {section}{\numberline {3.2}Machine Learning}{8}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Markov Models}{8}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}Recurrent Neural Networks}{8}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.3}Long Short Term Memory Networks}{8}{subsection.3.2.3}%
+\contentsline {subsection}{\numberline {3.2.4}Mixture Density Recurrent Neural Networks}{8}{subsection.3.2.4}%
+\contentsline {section}{\numberline {3.3}Heuristics in AI}{8}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}Rules Based Heuristics}{8}{subsection.3.3.1}%
+\contentsline {subsection}{\numberline {3.3.2}Intregrating Search and Heuristics}{8}{subsection.3.3.2}%
+\contentsline {subsection}{\numberline {3.3.3}Intregrating Machine Learning and Heuristics}{8}{subsection.3.3.3}%
+\contentsline {section}{\numberline {3.4}Combining RNNs with Heuristic-Based Methods}{8}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}RNN Prediction Trees (or maybe name this subsection robot pathfinding, and each other subsection a different field of use)}{8}{subsection.3.4.1}%
+\contentsline {subsection}{\numberline {3.4.2}Other uses in literature similar to our combination}{9}{subsection.3.4.2}%
+\contentsline {section}{\numberline {3.5}Interactive Musical Prediction Systems}{9}{section.3.5}%
+\contentsline {chapter}{\numberline {4}System Design}{11}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Design Overview}{11}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Prediction Trees}{11}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Generating Prediction Trees}{11}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Searching Prediction Trees}{11}{subsection.4.2.2}%
+\contentsline {section}{\numberline {4.3}Structural Parameters}{11}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Subsection for each individual structural parameter}{11}{subsection.4.3.1}%
+\contentsline {section}{\numberline {4.4}Branch Heuristic}{12}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Human Interaction}{12}{section.4.5}%
+\contentsline {subsection}{\numberline {4.5.1}Tracking Structural Movement}{12}{subsection.4.5.1}%
+\contentsline {subsection}{\numberline {4.5.2}Structural Parameter User Interface}{12}{subsection.4.5.2}%
+\contentsline {section}{\numberline {4.6}Training New Structural Parameters}{12}{section.4.6}%
+\contentsline {chapter}{\numberline {5}Evaluation}{13}{chapter.5}%
+\contentsline {chapter}{\numberline {6}Future Work}{15}{chapter.6}%
+\contentsline {chapter}{\numberline {7}Conclusion}{17}{chapter.7}%
+\contentsline {chapter}{Bibliography}{19}{section*.1}%
 \providecommand \tocbasic@end@toc@file {}\tocbasic@end@toc@file 

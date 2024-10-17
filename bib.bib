@@ -1,33 +1,399 @@
-@inproceedings {Smith2021Wubalubadubdub,
-  author    = {Richard Smith and Summer Smith and Morty Smith},
-  booktitle = {Plumbus: How they do it},
-  title     = {Wubalubadubdub: {R}ick \& {M}orty Forever and Forever a Hundred Years},
-  year      = {2115},
-  pages     = {C137--$\infty$},
-  publisher = {Adult Swim}
+# Charles paper on using Mixture Density Network for a NIME
+# TODO: check if this is MDRNN or just an MDN, if so maybe we separate MDN into a subsection and include an MDRNN section afterwards?
+@InProceedings{MartinRoboJam2018,
+  author={Martin, Charles Patrick and Torresen, Jim},
+  editor={Liapis, Antonios and Romero Cardalda, Juan Jes{\'u}s and Ek{\'a}rt, Anik{\'o}},
+  title={RoboJam: A Musical Mixture Density Network for Collaborative Touchscreen Interaction},
+  booktitle={Computational Intelligence in Music, Sound, Art and Design},
+  year={2018},
+  publisher={Springer International Publishing},
+  pages={161--176},
+  doi={10.1007/978-3-319-77583-8_11},
+  isbn={978-3-319-77583-8}
+}
+
+# Important paper for inclusion in the MDRNN background section, explaining their usefulness in a way which will easily link to computer music
+@article{MartinMDRNN2019,
+  author       = {Kai Olav Ellefsen and Charles Patrick Martin and Jim T{\o}rresen},
+  title        = {How do Mixture Density RNNs Predict the Future?},
+  archivePrefix = {arXiv},
+  eprint = {abs/1901.07859},
+  year         = {2019},
+  doi = {10.48550/arXiv.1901.07859}
+}
+
+# TODO: Deep Predictive Models in Interactive Music?
+
+# This is IMPSY, the main basis for our paper
+@article{MartinMDRNNinNIME2019,
+  author       = {Charles P. Martin and Jim T{\o}rresen},
+  title        = {An Interactive Musical Prediction System with Mixture Density Recurrent Neural Networks},
+  archivePrefix = {arXiv},
+  eprint = {abs/1904.05009},
+  year         = {2019},
+  doi = {10.48550/arXiv.1904.05009}
+}
+
+##################################################################################
+# The following citations are not completed or checked yet and should be updated #
+##################################################################################
+
+@book{Collins2017Cambridge,
+  title={The Cambridge companion to electronic music},
+  author={Collins, Nick and d'Escriv{\'a}n, Julio},
+  year={2017},
+  publisher={Cambridge University Press}
+}
+
+@article{Puckette2002Max,
+  title={Max at seventeen},
+  author={Puckette, Miller},
+  journal={Computer Music Journal},
+  volume={26},
+  number={4},
+  pages={31--43},
+  year={2002},
+  publisher={JSTOR}
+}
+
+@inproceedings{Puckette1997PD,
+  title={Pure data},
+  author={Puckette, Miller S and others},
+  booktitle={ICMC},
+  year={1997}
+}
+
+# A real-time interactive human-machine performance thing, could also be mentioned in the final section as it attempts to balance matching human performer vs doing its own thing with only machine learning
+@inproceedings{Beyls2018HumanMachineImprov,
+  author       = {Beyls, Peter},
+  title        = {Motivated Learning in Human-Machine Improvisation},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2018,
+  pages        = {238--243},
+  publisher    = {Zenodo},
+  month        = jul,
+  venue        = {Blacksburg, Virginia, USA},
+  doi          = {10.5281/zenodo.1302565},
+  url          = {https://doi.org/10.5281/zenodo.1302565}
+}
+
+# Real time interactive percussion paper, can do call and response
+@inproceedings{Hawryshkewich2018InteractivePercussion,
+  author       = {Hawryshkewich, Andrew and
+                  Pasquier, Philippe and
+                  Eigenfeldt, Arne},
+  title        = {{Beatback : A Real-time Interactive Percussion 
+                   System for Rhythmic Practise and Exploration}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2018,
+  pages        = {100--105},
+  publisher    = {Zenodo},
+  month        = feb,
+  venue        = {Sydney, Australia},
+  doi          = {10.5281/zenodo.1177797},
+  url          = {https://doi.org/10.5281/zenodo.1177797}
+}
+
+# Great real-time interaction paper studying how to transfer initiative in collaborative performance
+@inproceedings{Pan2018InitiativeExchange,
+  author       = {Pan, Ye and
+                  Kim, Min-Gyu and
+                  Suzuki, Kenji},
+  title        = {{A Robot Musician Interacting with a Human Partner 
+                   through Initiative Exchange}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2018,
+  pages        = {166--169},
+  publisher    = {Zenodo},
+  month        = feb,
+  venue        = {Sydney, Australia},
+  doi          = {10.5281/zenodo.1177875},
+  url          = {https://doi.org/10.5281/zenodo.1177875}
+}
+
+# Transfer of initiative in a multi humand and robot collaborative performance, shows how far real-time interactive NIMEs can go
+@inproceedings{Weinberg2018MultiHumanRobot,
+  author       = {Weinberg, Gil and
+                  Blosser, Brian and
+                  Mallikarjuna, Trishul and
+                  Raman, Aparna},
+  title        = {{The Creation of a Multi-Human, Multi-Robot 
+                   Interactive Jam Session}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2018,
+  pages        = {70--73},
+  publisher    = {Zenodo},
+  month        = feb,
+  venue        = {Pittsburgh, PA, United States},
+  doi          = {10.5281/zenodo.1177705},
+  url          = {https://doi.org/10.5281/zenodo.1177705}
+}
+
+# Start of machine learning section, review of literature including general weaknesses of ML in music (or maybe include weaknesses at start of next section? or combo?)
+@inproceedings{Jourdan2024MachineLearningMusicReview,
+  author       = {Jourdan, Théo and
+                  Caramiaux, Baptiste},
+  title        = {{Machine Learning for Musical Expression: A 
+                   Systematic Literature Review}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2024,
+  pages        = {319--331},
+  publisher    = {Zenodo},
+  month        = may,
+  venue        = {Mexico City, Mexico},
+  doi          = {10.5281/zenodo.11189198},
+  url          = {https://doi.org/10.5281/zenodo.11189198}
+}
+
+# A machine learning for instruments tool, generates mappings from control devices to outputs in real-time
+@article{Fiebrink2009Wekinator,
+  title={A meta-instrument for interactive, on-the-fly machine learning},
+  author={Fiebrink, Rebecca and Trueman, Daniel and Cook, Perry R and others},
+  year={2009}
+}
+
+# Used markov models to generate accompaniment for voal melodies
+@inproceedings{Simon2008MarkovAccompany,
+  title={MySong: automatic accompaniment generation for vocal melodies},
+  author={Simon, Ian and Morris, Dan and Basu, Sumit},
+  booktitle={Proceedings of the SIGCHI conference on human factors in computing systems},
+  pages={725--734},
+  year={2008}
+}
+
+# Used markov models for harmoinising chorales
+@article{Allan2004MarkovHarmonise,
+  title={Harmonising chorales by probabilistic inference},
+  author={Allan, Moray and Williams, Christopher},
+  journal={Advances in neural information processing systems},
+  volume={17},
+  year={2004}
+}
+
+# RNN taking some basic parameters from the performers to guide generative performance in real time
+@inproceedings{Naess2020IntelligentRNN,
+  author       = {Naess, Torgrim Rudland and
+                  Martin, Charles Patrick},
+  title        = {{A Physical Intelligent Instrument using Recurrent 
+                   Neural Networks}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2020,
+  pages        = {79--82},
+  publisher    = {Zenodo},
+  month        = feb,
+  venue        = {Porto Alegre, Brazil},
+  doi          = {10.5281/zenodo.3672874},
+  url          = {https://doi.org/10.5281/zenodo.3672874}
+}
+
+# Examplins use of RNNs, eg works with sequential data, takes input, prev state, and current time step, eg holds information from past time steps
+@book{Chollet2021RNNBook,
+  title={Deep learning with Python},
+  author={Chollet, Francois},
+  year={2021},
+  publisher={Simon and Schuster}
+}
+
+# Bidirections RNNs creator
+@article{Schuster1997BidirectionalRNN,
+  title={Bidirectional recurrent neural networks},
+  author={Schuster, Mike and Paliwal, Kuldip K},
+  journal={IEEE transactions on Signal Processing},
+  volume={45},
+  number={11},
+  pages={2673--2681},
+  year={1997},
+  publisher={Ieee}
+}
+
+# Creater of LSTM to fix issues with RNNs
+@article{Hochreiter1997LSTM,
+  title={Long Short-term Memory},
+  author={Hochreiter, S},
+  journal={Neural Computation MIT-Press},
+  year={1997}
+}
+
+# LSTM based on text (eg predict C:maj from G:maj) for music composition
+@article{Choi2016TextLSTM,
+  title={Text-based LSTM networks for automatic music composition},
+  author={Choi, Keunwoo and Fazekas, George and Sandler, Mark},
+  journal={arXiv preprint arXiv:1604.05358},
+  year={2016}
+}
+
+# LSTM paper taking visual data (Kinect 3d camera) of movement and translating to melody
+@inproceedings{Takase2021CameraMelodyLSTM,
+  author       = {Takase, Haruya and
+                  Shiramatsu, Shun},
+  title        = {{Support System for Improvisational Ensemble Based 
+                   on Long Short-Term Memory Using Smartphone Sensor}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2021,
+  pages        = {394--398},
+  publisher    = {Zenodo},
+  month        = may,
+  venue        = {Birmingham, UK},
+  doi          = {10.5281/zenodo.4813434},
+  url          = {https://doi.org/10.5281/zenodo.4813434}
+}
+
+# LSTM for continuing chord progressions, discusses weaknesses of LSTM
+@inproceedings{Garoufis2020LSTMChordProgression,
+  title={An LSTM-based dynamic chord progression generation system for interactive music performance},
+  author={Garoufis, Christos and Zlatintsi, Athanasia and Maragos, Petros},
+  booktitle={ICASSP 2020-2020 IEEE international conference on acoustics, speech and signal processing (ICASSP)},
+  pages={4502--4506},
+  year={2020},
+  organization={IEEE}
+}
+
+# Bidirectional LSTM accompaniments
+@inproceedings{Faitas2020BidirectionalLSTM,
+  author       = {Faitas, Andrei and
+                  Baumann, Synne Engdahl and
+                  Naess, Torgrim Rudland and
+                  Torresen, Jim and
+                  Martin, Charles Patrick},
+  title        = {{Generating Convincing Harmony Parts with Simple 
+                   Long Short-Term Memory Networks}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2020,
+  pages        = {325--330},
+  publisher    = {Zenodo},
+  month        = feb,
+  venue        = {Porto Alegre, Brazil},
+  doi          = {10.5281/zenodo.3672980},
+  url          = {https://doi.org/10.5281/zenodo.3672980}
+}
+
+#####################
+# Heuristics Section
+
+# Rules based system for generative music
+@inproceedings{Amerotti2023RuleSystem,
+  title={A Live Performance Rule System Informed by Irish Traditional Dance Music},
+  author={Amerotti, Marco and Benford, Steve and Sturm, Bob and Vear, Craig},
+  booktitle={International Symposium on Computer Music Multidisciplinary Research},
+  year={2023}
+}
+
+# Rules based for continuing human melodies (rule mining)
+@article{Halkiopoulos2012RuleMiningImprov,
+  title={Automatic interactive music improvization based ON data mining},
+  author={Halkiopoulos, Constantinos and Boutsinas, Basilis},
+  journal={International Journal on Artificial Intelligence Tools},
+  volume={21},
+  number={04},
+  pages={1250016},
+  year={2012},
+  publisher={World Scientific}
+}
+
+# Evaluation for rules based system above, shows weaknesses in 'humanness' of the system
+@inproceedings{Amerotti2024RuleSystemEval,
+  author       = {Amerotti, Marco and
+                  Sturm, Bob L. T. and
+                  Benford, Steve and
+                  Maruri-Aguilar, Hugo and
+                  Vear, Craig},
+  title        = {{Evaluation of an Interactive Music Performance 
+                   System in the Context of Irish Traditional Dance
+                   Music}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2024,
+  pages        = {149--153},
+  publisher    = {Zenodo},
+  month        = oct,
+  venue        = {Utrecht, Netherlands},
+  doi          = {10.5281/zenodo.13904812},
+  url          = {https://doi.org/10.5281/zenodo.13904812}
+}
+
+# Using heuristics to generate harmony using scale networks (a type of search as well?)
+@inproceedings{Turczan2020ScaleNetworkHeuristic,
+  author       = {Turczan, Nathan and
+                  Kapur, Ajay},
+  title        = {{The Scale Navigator: A System for Networked 
+                   Algorithmic Harmony}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2020,
+  pages        = {101--104},
+  publisher    = {Zenodo},
+  month        = feb,
+  venue        = {Porto Alegre, Brazil},
+  doi          = {10.5281/zenodo.3672882},
+  url          = {https://doi.org/10.5281/zenodo.3672882}
+}
+
+# Bakcground for next cite
+@article{Lehman2011EvolutionNovelty,
+  title={Abandoning objectives: Evolution through the search for novelty alone},
+  author={Lehman, Joel and Stanley, Kenneth O},
+  journal={Evolutionary computation},
+  volume={19},
+  number={2},
+  pages={189--223},
+  year={2011},
+  publisher={MIT Press}
+}
+
+# Uses evolution based machine learning with search for partners based on novelty heuristics, could use for combo section, relies on paper in previous cite
+@inproceedings{Ianigro2018CTRNNNoveltySearch,
+  author       = {Ianigro, Steffan Carlos and
+                  Bown, Oliver},
+  title        = {{Exploring Continuous Time Recurrent Neural 
+                   Networks through Novelty Search}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2018,
+  pages        = {108--113},
+  publisher    = {Zenodo},
+  month        = jul,
+  venue        = {Blacksburg, Virginia, USA},
+  doi          = {10.5281/zenodo.1302697},
+  url          = {https://doi.org/10.5281/zenodo.1302697}
+}
+
+##############
+# EVALUATION #
+##############
+
+# Good reference for the eval section, covers metrics and ways to evaluate interactive musical systems
+@inproceedings{hsu_2018_1177579,
+  author       = {Hsu, William and
+                  Sosnick, Marc},
+  title        = {{Evaluating Interactive Music Systems : An HCI 
+                   Approach}},
+  booktitle    = {{Proceedings of the International Conference on New 
+                   Interfaces for Musical Expression}},
+  year         = 2018,
+  pages        = {25--28},
+  publisher    = {Zenodo},
+  month        = feb,
+  venue        = {Pittsburgh, PA, United States},
+  doi          = {10.5281/zenodo.1177579},
+  url          = {https://doi.org/10.5281/zenodo.1177579}
 }
 
 
-@inproceedings {Cooper2015SuperfluidVacuumTheory,
-   author    = {Sheldon Lee Cooper and Leonard Leakey Hofstadter},
-   booktitle = {The Troll Manifestation},
-   title     = {Superfluid Vacuum Theory: Spacetime is a Surface of the Superfluid},
-   year      = {2015},
-   pages     = {42--73},
-   publisher = {Scientific American}
-}
+##################################################################################
+# Other found background papers
 
+# Towards autonomous agents for live computer music: Realtime machine listening and interactive music systems
 
-@misc {Oetiker2021LatexIntroduction,
-   author = {Tobias Oetiker},
-   year   = {2021},
-   title  = {A (Not So) Short Introduction to {\LaTeX{}} $2_{\varepsilon}$},
-   url    = {https://www.ctan.org/tex-archive/info/lshort/english/}
-}
+# Interactive music systems: machine listening and composing
 
+# The Jam-O-Drum interactive music system: a study in interaction design
 
-@misc {pictureSource,
-   author = {Ann H},
-   url    = {https://www.pexels.com/de-de/foto/schwarzes-holzernes-wanddekor-3095771/},
-   note   = {According to \url{https://www.pexels.com/license/}, all photos on that website can be used for free.}
-}
+# A NIME Reader: Fifteen Years of New Interfaces for Musical Expression
