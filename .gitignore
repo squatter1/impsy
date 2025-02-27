@@ -171,3 +171,6 @@ datasets
 *.csv
 
 experiment_data
+
+# python env
+python_311_env_impsy/

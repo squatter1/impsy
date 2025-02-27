@@ -262,22 +262,23 @@ class PredictiveMusicMDRNN(object):
         )
         return history
 
-    def generate(self, prev_sample):
+    def generate(self, prev_sample, lstm_states=None):
         """Generate one forward prediction from a previous sample in format
         (dt, x_1,...,x_n). Pi and Sigma temperature are adjustable."""
         assert (
             len(prev_sample) == self.dimension
         ), "Only works with samples of the same dimension as the network"
-        # print("Input sample", prev_sample)
+        using_self = False
+        if lstm_states is None:
+            lstm_states = self.lstm_states
+            using_self = True
         input_list = [
             prev_sample.reshape(1, 1, self.dimension) * SCALE_FACTOR
-        ] + self.lstm_states
-        model_output = self.model(input_list)
+        ] + lstm_states
         # Note that we have confirmed that model.__call__() is way faster than model.predict().
-        # model_output = self.model.predict(input_list)
+        model_output = self.model(input_list)
         mdn_params = model_output[0][0].numpy()
-        # mdn_params = model_output[0][0]
-        self.lstm_states = model_output[1:]  # update storage of LSTM state
+        lstm_states = model_output[1:]  # update storage of LSTM state
 
         # sample from the MDN:
         new_sample = (
@@ -293,7 +294,10 @@ class PredictiveMusicMDRNN(object):
         new_sample = new_sample.reshape(
             self.dimension,
         )
-        return new_sample
+        if using_self:
+            self.lstm_states = lstm_states
+            return new_sample
+        return [new_sample, lstm_states]
 
 
 class MDRNNInferenceModel(abc.ABC):
@@ -328,6 +332,15 @@ class MDRNNInferenceModel(abc.ABC):
 
     def reset_lstm_states(self):
         self.lstm_states = lstm_blank_states(self.n_layers, self.n_hidden_units)
+
+    
+    def set_lstm_states(self, lstm_states: np.ndarray) -> None:
+        self.lstm_states = lstm_states
+
+
+    def get_lstm_states(self) -> np.ndarray:
+        """Get the current LSTM states."""
+        return self.lstm_states
     
 
     @abc.abstractmethod
@@ -337,7 +350,7 @@ class MDRNNInferenceModel(abc.ABC):
 
 
     @abc.abstractmethod
-    def generate(self, prev_value: np.ndarray) -> np.ndarray:
+    def generate(self, prev_value: np.ndarray, lstm_states: np.ndarray) -> np.ndarray:
         """Handles input values (synchronously) if needed."""
         pass
 
@@ -357,21 +370,26 @@ class TfliteMDRNN(MDRNNInferenceModel):
         self.runner = self.interpreter.get_signature_runner()
 
 
-    def generate(self, prev_value: np.ndarray) -> np.ndarray:
+    def generate(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
         """makes a prediction. Needs to know the exact state names at the moment."""
+        using_self = False
+        if lstm_states is None:
+            lstm_states = self.lstm_states
+            using_self = True
+        print("TFLITE GENERATE")
         input_value = prev_value.reshape(1,1,self.dimension) * SCALE_FACTOR
         input_value = input_value.astype(np.float32, copy=False)
         ## Create the input dictionary:
         runner_input = {'inputs': input_value}
         for i in range(self.n_layers):
-            runner_input[f'state_h_{i}'] = self.lstm_states[2 * i] # h
-            runner_input[f'state_c_{i}'] = self.lstm_states[2 * i + 1] # c
+            runner_input[f'state_h_{i}'] = lstm_states[2 * i] # h
+            runner_input[f'state_c_{i}'] = lstm_states[2 * i + 1] # c
         ## Run inference
         raw_out = self.runner(**runner_input)
         ## Extract the lstm states and mdn parameters
         for i in range(self.n_layers):
-            self.lstm_states[2 * i] = raw_out[f'lstm_{i}'] # h
-            self.lstm_states[2 * i + 1] = raw_out[f'lstm_{i}_1'] # c
+            lstm_states[2 * i] = raw_out[f'lstm_{i}'] # h
+            lstm_states[2 * i + 1] = raw_out[f'lstm_{i}_1'] # c
         mdn_params = raw_out['mdn_outputs'].squeeze()
         # sample from the MDN:
         new_sample = (
@@ -387,7 +405,10 @@ class TfliteMDRNN(MDRNNInferenceModel):
         new_sample = new_sample.reshape(
             self.dimension,
         )
-        return new_sample
+        if using_self:
+            self.lstm_states = lstm_states
+            return new_sample
+        return [new_sample, lstm_states]
 
 
 class  KerasMDRNN(MDRNNInferenceModel):
@@ -412,22 +433,25 @@ class  KerasMDRNN(MDRNNInferenceModel):
             self.model.load_weights(self.model_file)
 
 
-    def generate(self, prev_value: np.ndarray) -> np.ndarray:
+    def generate(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
         """Generate one forward prediction from a previous sample in format
         (dt, x_1,...,x_n). Pi and Sigma temperature are adjustable."""
         assert (
             len(prev_value) == self.dimension
         ), "Only works with samples of the same dimension as the network"
+        if lstm_states is None:
+            lstm_states = self.lstm_states
+            using_self = True
         # print("Input sample", prev_value)
         input_list = [
             prev_value.reshape(1, 1, self.dimension) * SCALE_FACTOR
-        ] + self.lstm_states
+        ] + lstm_states
         model_output = self.model(input_list)
         # Note that we have confirmed that model.__call__() is way faster than model.predict().
         # model_output = self.model.predict(input_list)
         mdn_params = model_output[0][0].numpy()
         # mdn_params = model_output[0][0]
-        self.lstm_states = model_output[1:]  # update storage of LSTM state
+        lstm_states = model_output[1:]  # update storage of LSTM state
 
         # sample from the MDN:
         new_sample = (
@@ -443,7 +467,10 @@ class  KerasMDRNN(MDRNNInferenceModel):
         new_sample = new_sample.reshape(
             self.dimension,
         )
-        return new_sample
+        if using_self:
+            self.lstm_states = lstm_states
+            return new_sample
+        return [new_sample, lstm_states]
 
 
 class DummyMDRNN(MDRNNInferenceModel):
@@ -458,6 +485,8 @@ class DummyMDRNN(MDRNNInferenceModel):
         self.output_value = random_sample(out_dim=self.dimension)
 
 
-    def generate(self, prev_value: np.ndarray) -> np.ndarray:
-        return self.output_value
+    def generate(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
+        if lstm_states is None:
+            return self.output_value
+        return [self.output_value, lstm_states]
     
