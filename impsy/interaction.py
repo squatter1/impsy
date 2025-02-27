@@ -11,6 +11,9 @@ from .utils import mdrnn_config, get_config_data, print_io
 import impsy.impsio as impsio
 from pathlib import Path
 
+from impsy.prediction_tree import PredictionTree
+import impsy.heuristics as heuristics
+
 np.set_printoptions(precision=2)
 
 INTERACTION_MODES = {
@@ -196,6 +199,12 @@ class InteractionServer(object):
         )
         self.call_response_mode = "call"
 
+        # Set up structural variables
+        self.use_prediction_tree = True
+        self.rnn_output_memory_size = 15
+        self.rnn_output_memory = []
+        self.rnn_prediction_tree = None
+
     def send_back_values(self, output_values):
         """sends back sound commands to the MIDI/OSC/WebSockets outputs"""
         output = np.minimum(np.maximum(output_values, 0), 1)
@@ -266,12 +275,52 @@ class InteractionServer(object):
             and self.rnn_output_buffer.empty()
             and not self.rnn_prediction_queue.empty()
         ):
+            # Get the next item from the prediction queue.
             item = self.rnn_prediction_queue.get(block=True, timeout=None)
-            rnn_output = neural_net.generate(item)
+            # If memory is length zero, set memory to the current item.
+            if not self.rnn_output_memory:
+                self.rnn_output_memory = [item]
+            if not self.use_prediction_tree:
+                # If we aren't use a prediction tree, just predict the next item.
+                rnn_output = neural_net.generate(item)
+            else:
+                # If we are using a prediction tree, build it
+                start_time = time.time()
+                self.rnn_prediction_tree = PredictionTree(
+                    max_depth=4,
+                    branching_factor=4,
+                    initial_lstm_states=neural_net.get_lstm_states(),
+                )
+                self.rnn_prediction_tree.build_tree(self.rnn_output_memory, neural_net.generate)
+                # End timer
+                end_time = time.time()
+                print(f"Time taken: {end_time - start_time}")
+    
+                # Print the sampled branches
+                self.rnn_prediction_tree.rank_branches(heuristics.four_note_repetition)
+                #for i, (branch, heuristic_value) in enumerate(sampled_branches):
+                #    print(f"Branch {i + 1} Heuristic Value: {heuristic_value:.4f}):")
+                #    print(branch)
+                #    print(f"Branch length: {len(branch)}")
+                #    print()
+                # Get the branch with the highest heuristic value
+                best_branch = self.rnn_prediction_tree.best_branch
+                #print("Best Branch:", best_branch)
+                # Get the item from memory length + 1 from the best branch
+                rnn_output = best_branch[0][len(self.rnn_output_memory)]
+                neural_net.set_lstm_states(best_branch[1][len(self.rnn_output_memory)])
+                #lstm_states = best_branch[0][len(self.rnn_output_memory)][1]
+            # Store output in output memory.
+            self.rnn_output_memory.append(rnn_output)
+            if len(self.rnn_output_memory) > self.rnn_output_memory_size:
+                self.rnn_output_memory.pop(0)
+            # Put the output into the playback queue.
             self.rnn_output_buffer.put_nowait(
                 rnn_output
-            )  # put it in the playback queue.
+            )  
             self.rnn_prediction_queue.task_done()
+        
+        
 
     def monitor_user_action(self):
         """Handles changing responsibility in Call-Response mode."""
