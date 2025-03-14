@@ -1,0 +1,13 @@
+\chapter{Experiments}\label{chap:experiments}
+
+Tuning meta parameters section, and other adapting and fine tuning of the algorithm needs to generate results used for evaluation.
+
+We want to have stats for a few key things, maybe each in its own subsection:
+1. How close does the MCTS search get to the 'perfect heuristic' eg completely matching the exact value of all parameters based on where they were for the user and how they were moving over time. This is a measure of how well the system is able to learn the user's preferences and how well it is able to predict the user's future preferences. Use this to generate hyperparameters for the MCTS search and other algorithm elements that are optimal (do we want tuning these parameters to be in a completely different section before the evaluation instead?). Eg show how this changes with 
+ - the number of iterations in the MCTS search (node expansions)
+ - the depth of the MCTS search, including adaptive depth options and comparing them
+ - the exploitation vs exploration parameters in the MCTS search
+ - how continuous MCTS is implemented, eg how 'far away' a successor needs to be to be considered a new node
+We also want to show metrics for each of the parameters, and individually how well they alone can be tracked and predicted.
+
+2. Comparisons of exploration and exploitation, by looking at probability of chosen node vs average probability of any node randomly chosen in the MDN distribution. If the chosen node probability is usually higher than average, shink how wide the MDN is as the current one is too explorative, if it is usually lower, increase the width of the MDN as the current one is too exploitative. Compare against the perceived optimal from Charles' study when only choosing randomly, I hypothesise that if the guidance of MCTS search is strong, it should learn toward wider distributions being optimal than are optimal with random selection.
