@@ -1,3 +1,143 @@
 \chapter{Background}\label{chap:background}
+This report relates to work in multiple different fields, including musical controllers, generative music, and robot motion planning, and this chapter provides an overview of each of these fields, connecting back to their relevance to our research. It will cover the advanatages and disadvanatages of various methods for various applications, and discuss gaps in research which we aim to cover within our research. This chapter also covers the machine learning and search algorithms used in our system design, their previous applications, and their potential to be applied within our research. We begin with an overview of New Interfaces for Musical Expression (NIMEs), including a brief history of developments in computer music which led to the creation of the field, important NIME papers, and the subclasses of NIMEs, including real-time interactive NIMEs. We then discuss how machine learning has been used in music, and explore some different types of neural networks and their relevance to our report. This is followed by a look into symbolic AI, a different approach to machine learning based techniques, and its advantages and disadvantages in music generation compared to neural network based approaches. Next, the background for search methods not commonly used in previous computer music literature, but which are used in our own system design, or in other fields where similar combinations of machine learning and search are utilised, is covered. We then discuss where combinations of machine learning and search which have crossover to our intended system design have already achieved impressive results. Finally, we briefly cover IMPSY, the system our research builds on, how it combines many computer music and machine learning techniques previously discussed to great effect, what its weaknesses and gaps in function are, and how applying combined machine learning and search techniques found in other fields can be applied in this context to address some of these weaknesses.
 
-This chapter introduces the theoretical background used for our system, including mixture density recurrent neural networks (MDRNNs), monte-carlo tree search (MCTS), and heuristics.
+\section{New Interfaces for Musical Expression (NIMEs)}
+\textit{The Cambridge Companion to Electronic Music} by~\cite{Collins2017Cambridge} describes three eras of music programming. The first era began with MUSIC-1, the first digital computer music synthesis program, which was followed be a series of versions collectively referred to as MUSIC-N. MUSIC-N introduced the concept of algorithmic composition, and is the precursor to modern computer music. The second era was defined by the introduction of real-time music programming languages, such as Max~\citep{Puckette2002Max} and Pure Data~\citep{Puckette1997PD}. Pure data is a graphical drag and drop modular programming language which allows for algorithmic compositions to be edited during performance, by editing the graphical coding of the system while a performance is in progress. While live performance with pure data is difficult and rudimentary compared to modern alternatives, it was a large step forward in the computer music space. The third and current era of music programming refers to the surge in more real-time and interactive musical interfaces, and a shift from programming being a tool to create musical algorithms, instruments, and performances, to programs becoming the instruments themselves. NIMEs can be defined as the core of what this shift represents, encompassing several concepts such as interactive musical prediction~\citep{MartinMDRNNinNIME2019}, generative accompaniment~\citep{Simon2008MarkovAccompany}, gestural interfaces~\citep{Takase2021CameraMelodyLSTM}, and much more. The term NIME originally comes from a conference series of the same name, which began in 2001 and now annually showcases the latest NIME related research.
+\subsection{Real-Time Interactive NIMEs}
+TODO: maybe move these citations to the subsubsections below?
+Real-time interactive NIMEs represent a category of NIMEs where the user and system interact in real-time during musical performance, and can be approximately split into four main subcategories. The first includes NIMEs where the user acts as an instrument and the system acts as a performer, such as gestue based controllers~\citep{Takase2021CameraMelodyLSTM}. The second is where the system acts as an instrument and the user acts as a performer, such as AI augmented instruments~\citep{TODO}. The third involves simultaneous collaborative performances involving independently acting users and systems, such as human-robot collaborative ensembles~\citep{Weinberg2018MultiHumanRobot}. Finally, the fourth subcategory is interactive musical prediction systems, where the system learns from the user and contributes accompaniment, including in the form of call and response~\citep{MartinMDRNNinNIME2019}. The call and response mode of interactive musical prediction systems is the main focus area of our paper.
+
+TODO include the actual citations:
+
+\subsubsection{Gesture-Based Controllers}
+TODO CITE: ~\citep{Takase2021CameraMelodyLSTM}
+Gesture-based controllers map physical movements to musical parameters through a variety of sensing technologies. Early gestural controllers such as the Radio Baton by \cite{Mathews1991RadioBaton} established early frameworks for three-dimensional gestural control, which was later adapted into commercial technologies such as the Wii Remote \citep{Kiefer2008WiiInstrument} and Microsoft Kinect \citep{Silva2013KinectMusicalInterface}, making these interfaces both accesible and well known to the broader public. Early work on using this technology for NIMEs attempted to map gestures to musical parameters, and early examples often use rule-based systems for this \citep{Hunt2000MappingStrategies} (check this is correct for the reference, mention specifics). The Wekinator, created by \cite{Fiebrink2011WekiGestures} allows performers to train custom gesture recognition models in real-time using machine learning, and more recent applications employ more complex deep learning techniques to map gestures \citep{Scurto2021DeepLearningGestures}. These adaptive systems allow performers to develop personalized control strategies that evolve through interaction rather than being predetermined by designers. Our research aims to be controller agnostic, allowing for complex controllers such as gestural controllers to be used in the system, and for the system to adapt to the unique control strategies of each performer.
+\subsubsection{Augmented Instruments}
+Augmented traditional instruments represent another significant approach, and can add enhanced control capabilities to instruments, adapt their outputs, or both, without sacrificing their familiarity. Machover's Hyperinstruments project \citep{Machover1992Hyperinstruments} was an early work focusing on control capabilities by enhancing traditional instruments with sensors and digital processing capabilities. More recent examples include McPherson's Magnetic Resonator Piano \citep{McPherson2018AugmentedPiano}, which introduces electromagnetic actuation to create new sound possibilities while maintaining traditional piano technique, and augmented string instruments which capture bow gestures and finger positions to enable extended sonic capabilities \citep{Overholt2011AugmentedViolin}. Our research also aims to be instrument agnostic, as any instrument which can map its outputs to a set number of dimensions can be used to train a model for the system. 
+\subsubsection{Collaborative Networked Instruments}
+Collaborative networked instruments have extend the concept of NIMEs beyond individual performance, allowing multiple performers to interact simultaneously across physical and virtual spaces, and for AI and human performers to collaborate in simultaneous performance. The Stanford Laptop Orchestra \citep{Wang2008SLOrk} established frameworks for networked ensemble performance, while systems like Jordà's Reactable \citep{Jorda2007Reactable} enable multiple performers to manipulate a shared musical environment through tangible interfaces. These collaborative interfaces often employ novel synchronization strategies and communication protocols to maintain musical coherence across distributed performance environments \citep{Carôt2009NetworkedMusic}. More recent work has explored human-robot collaborative ensembles, where AI systems and human performers interact in real-time to create novel musical experiences \citep{Weinberg2018MultiHumanRobot}. Our research does not cover the same breadth as these collaborative systems, as it only focuses on collaboration between one human and one AI performer, and does not involve both performing simultaneously. However, the techniques used in these systems, particularly perceiving parameters of the human performer and using them to inform the AI performer, are relevant to our research (TODO: see if we can get specific citations for this to mention here).
+\subsubsection{Interactive Musical Prediction Systems}
+Interactive musical prediction systems anticipate and respond to performer actions based on learned patterns and musical knowledge \citep{Pachet2003Continuator}. These systems range from Markov-based approaches to more sophisticated neural network architectures capable of modeling longer-term musical dependencies. TODO: add more examples. IMPSY, the core system our research builds on, uses a mixture density recurrent neural network (MDRNN) to allow for collaborative call and response performances between human performers and the AI system by predicting the most likely next musical parameter values~\citep{MartinMDRNNinNIME2019}. Hence, this field is the most relevant to our research, and IMPSY in particular will be explored in more depth later in the chapter.
+
+\section{Machine Learning in Music}
+Machine learning techniques expand the possibilities of NIMEs significantly by allowing sophisticated and human-like generative music. Unlike rule-based approaches which rely on explicit programming of musical knowledge, machine learning models can discover patterns and relationships directly from musical data, allowing for more adaptive musical interactions. A well-trained musical prediction model can anticipate likely continuations of musical phrases, suggest complementary harmonizations, or generate real-time accompaniments to human performance on a variety of instruments. NIMEs can also be generalisable to multiple models trainable by users, allowing for easy expansion to different instruments and performance styles. The creation of effective machine learning based NIMEs requires an ability to capture both local patterns and global structures inherent in music. They must also balance the advantages of purely exploitative strategies, which aim to consistently generate the most likely next note, with explorative ones, which aim for more unique and human-like results. Many different machine learning architectures have been explored in attempt to balance these objectives, and each offers their own advantages and disadvantages. This section examines four key approaches that have proven particularly valuable for musical prediction tasks.
+
+\subsection{Markov Models}
+TODO: could we use markov models to predict longer term structures, repetitions, choruses, etc?
+TODO CITE: ~\citep{Simon2008MarkovAccompany}
+Markov models have been widely used in algorithmic composition due to their ability to capture local musical patterns and transitions. These probabilistic models operate on the principle that future states depend only on the current state (or a finite history of states), making them particularly suitable for modeling sequential musical events where local context strongly influences prediction. They are incredibly efficient computationally, requiring only a transition matrix to represent the probabilities of moving between states. However, this simplicity comes at the cost of limited expressive power, as Markov models struggle to capture long-term dependencies and hierarchical structures present in music.
+\subsubsection{First-order vs Higher-order Markov Chains}
+First-order Markov chains model transitions where the next state depends solely on the current state, represented by a simple transition probability matrix. While computationally efficient, they often produce musically simplistic results that lack long-term structure (TODO citations, maybe Ames, 1989). Higher-order Markov chains incorporate longer histories by conditioning predictions on sequences of previous states, enabling more coherent musical phrases and motifs. (TODO citation, maybe Pachet et al. (2011)) demonstrated that incorporating contexts of 8-12 notes produces significantly more musically convincing melodies, though at the cost of increased model complexity and data requirements.
+\subsubsection{Variable-order Markov Models}
+Variable-order Markov models (VOMMs) adaptively determine the appropriate context length for prediction based on available training data. Approaches such as Prediction Suffix Trees (PSTs) and Factor Oracles efficiently represent variable-length patterns by creating compact tree structures of musical sequences (Assayag \& Dubnov, 2004). This adaptability allows VOMMs to capture both short patterns when data is sparse and longer sequences when substantial evidence exists, making them particularly valuable for interactive systems where response time and predictive accuracy must be balanced (Conklin \& Witten, 1995). TODO: relevance to research.
+\subsubsection{Hidden Markov Models}
+Hidden Markov Models (HMMs) extend the Markov framework by distinguishing between observable events (notes, chords) and hidden states (underlying musical functions or intentions). This separation enables HMMs to model more abstract musical concepts such as harmonic function, phrase structure, or emotional characteristics (Raphael, 1999). Allan and Williams (2005) successfully applied HMMs to harmonization tasks by modeling the relationship between melodic notes (observations) and chord progressions (hidden states), demonstrating their capacity to capture musical grammar beyond surface-level patterns. TODO: relevance to research.
+\subsubsection{Applications in Musical Domains}
+In harmony generation, Markov models effectively capture common chord progressions and voice-leading practices within specific musical styles. Simon et al. (2008) demonstrated that style-specific transition matrices can generate convincing chord progressions for jazz standards. For melodic prediction, Markov-based systems like Pachet's Continuator (2002) enable real-time melodic continuation that respects stylistic constraints while maintaining musical coherence, making them valuable in interactive performance contexts.
+Recent research has explored hybrid approaches combining Markov models with other techniques to address their limitations in capturing hierarchical structure. Wang and Dubnov (2015) integrated variable-order Markov models with information dynamics to better capture both local transitions and long-term dependencies in musical sequences, showing improved performance in predictive tasks compared to standalone Markov approaches.
+TODO: our use of markbov models.
+
+\subsection{Recurrent Neural Networks}
+Recurrent Neural Networks (RNNs) extend beyond Markovian constraints by maintaining internal states that can theoretically capture longer-term dependencies in musical sequences. Their ability to learn representations directly from data without explicit feature engineering has made them valuable for modeling complex musical relationships.
+
+RNNs have become fundamental to music generation due to their ability to process sequential data:
+
+Basic RNN architecture and its application to musical sequences
+Vanishing gradient problem in musical applications
+Training strategies for musical RNNs
+Advantages and limitations in real-time generation
+(Papers about early musical applications of RNNs would be relevant)
+
+\subsection{Long Short Term Memory Networks}
+Long Short-Term Memory networks (LSTMs) address the vanishing gradient problem inherent in standard RNNs, enabling more effective learning of long-term dependencies crucial for musical coherence. Their gated architecture provides selective memory capabilities that better align with musical structures spanning multiple time scales.
+
+LSTMs have addressed many limitations of basic RNNs in musical applications:
+
+LSTM architecture benefits for long-term musical structure
+Applications in polyphonic music generation
+Real-time LSTM prediction systems
+Training considerations for musical LSTMs
+(Include references to breakthrough LSTM music papers)
+
+\subsection{Mixture Density Recurrent Neural Networks}
+Multidimensional Recurrent Neural Networks (MDRNNs) represent the current frontier in musical prediction by extending recurrent architectures to handle multiple dimensions simultaneously. This capability is particularly valuable for music, where relationships exist across pitch, time, timbre, and other dimensions, enabling more holistic prediction models.
+The following subsections examine each of these approaches in detail, highlighting their mechanisms, relative advantages, and specific applications in musical contexts. Particular attention is given to how these models balance competing requirements inherent in interactive musical systems: prediction accuracy, computational efficiency, and musical expressivity.
+
+MDRNNs combine probabilistic modeling with RNN capabilities:
+
+Probability distribution modeling for musical parameters
+Applications in continuous controller prediction
+Benefits for capturing musical expression
+Implementation challenges in real-time systems
+(Cite papers about MDRNNs in music generation)
+
+make sure to mention GAPS in the field!!! Eg people use MDRNNs to solve this issue with not using them: but solving it just by adding randomness is A
+little arbitrary, as it just adds randomness. Humans when they improvise don't just add randomness, they add structure and meaning to their randomness. most
+solutions either end up being 1. too random, 2. too structured, and maybe my mixing approaches we can get the best of both worlds.
+
+\section{Heuristic-Based AI in Music}
+These heuristic based search methods aren't new to the field of NIMEs, and are even more extensively studied in many other fields. This section explores the 
+\subsection{Rules Based Heuristics}
+Rule-based approaches have been fundamental in algorithmic composition:
+
+Music theory-based rule systems
+Style-specific compositional rules
+Real-time rule application strategies
+Advantages and limitations of pure rule-based systems
+(Reference classic rule-based composition systems)
+
+\subsection{Search Algorithms}
+Search algorithms combined with musical heuristics enable more sophisticated composition:
+
+Constraint satisfaction in musical generation
+Tree search with musical evaluation functions
+Real-time search strategies for live performance
+Balancing search depth with performance requirements
+(Cite papers about search in algorithmic composition)
+
+\subsection{Hybrid Approaches}
+Hybrid approaches combining learned models with heuristic rules:
+
+Neural networks guided by musical rules
+Combining statistical and symbolic approaches
+Real-time hybrid systems
+Training networks with heuristic constraints
+(Reference papers about hybrid musical systems)
+
+\section{Search Algorithms}
+
+\subsection{Beam Search}
+Neural Network Guided Beam Search:
+Instead of full tree search, a beam search keeps the top-k most promising branches.
+Used in sequence generation tasks like language models and neural machine translation.
+The neural network predicts multiple possible outcomes, and heuristics prune less promising paths.
+
+\subsection{Monte-Carlo Tree Search}
+
+\subsection{Continuous Monte-Carlo Tree Search}
+Explain the different ways of making MCTS continuous, which can allow it to adapt better,
+https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9636442
+has a good section on this.
+
+\section{Applications of Combined Machine Learning and Search}
+These examples demonstrate how the combination of prediction and search has been successful in other domains with similar real-time constraints.
+
+\subsection{Game Playing AI}
+Game playing systems that use Deep Neural Networks for state evaluation, cite alpha go
+
+\subsection{Natural Language Processing}
+Natural language processing systems combining prediction and grammar rules
+
+\subsection{Trajectory Rollouts with Multiple Hypotheses}
+
+\subsection{Robot Motion Planning}
+Subsection of robot motion planning and autonomous driving, and their combined MDRNNs with C-MCTS
+
+Similar approaches of using RNNs to generate nodes in prediction trees, which can then be searched using heuristic based methods, such as MCTS, are not present in the state-of-the-art for computer music. However, similar approaches are state-of-the-art techniques in other computing fields, particular in path planning for dynamic environments. For this problem, regular search techniques such as A* cannot generate effective paths, as during the execution of the path the environment around the agent will be dynamically changing in a complex multi-dimensional way, which can unpredictably affect the validity and optimality of generated paths. Hence, because the states after executing an action are non-deterministic, RNNs are used to generate predicted nodes for each point in the search tree. These RNNs are good at accounting for the complex dynamic environment, and can provide reasonable predictions for what some realistic future scenarios could be after executing a set of actions. The agent can then search through these RNN created environmental prediction trees, often using MCTS, to find paths which more effectively account for the unpredictable environment. (cite specific cases of these articles, and their results, here). The use of very similar techniques provides an analogy to our IMPS approach. Similarly to a dynamic physical environment that an agent is trying to pathfind within, in music we often have broad structural goals we want to adhere to, or important musical moments, such as a chorus, that we set a goal to build toward. However, in the short term we have to adapt to the complex multi-dimensional and hard to symbolically encode rules of what makes music sound good. Similarly to path planning in dynamic environments, we are aiming to use RNNs to predict and navigate the flow of music on a small scale, while search algorithms and symbolic heuristics control the broader cohesiveness and longer-term structural goals of a performance. We also see that current IMPS methods face analagous issues to only using RNNs or only using symbolic tree search in path finding in dynamic environments. When only symbolic reasoning is used, the agent will maintain some form of of goal-orientation and structure, but on a smaller scale it will take very inefficient paths as it cannot accurately predict its environment and must respond only when things go so wrong that its symbolic heuristics pick up on the issue. Similarly only using RNNs would lead to an agent which can very smoothly and effectively navigate the environment on a small scale, but would meander aimlessly without a strong long term direction. Hence, the techniques used in these papers are likely to be helpful in guiding the approaches we take in our paper, and so we will now analyse them further.
+
+TODO: Look into depth on the papers in the field, what things worked, what didn't, what was the effect of different methodologies and approaches.
+
+\section{IMPSY}
+Our research builds on the foundation of interactive musical prediction systems in NIMEs, specifically expanding upon IMPSY, developed by~\cite{MartinMDRNNinNIME2019}. IMPSY is a real-time interactive NIME that uses an MDRNN based approach to generate musical predictions. It is designed for collaraboration with human improvisation, and individual models for various instruments and performer styles can be trained quickly by feeding the training model data from human performer improvisation on the instrument of choice. IMPSY also has multiple different collaborative modes, such as a battle mode where a human user and the MDRNN play simulataneously, but the interaction mode we will focus on within this paper is the call and response mode. In this mode, the MDRNN is conditioned while the user plays, and begins to generate notes itself only when the user stops, letting the user take over again whenever they begin to use the instrument. Similarly to examples listed previously, the MDRNN layer within IMPSY solves the problem with traditional RNNs of only being able to output a single prediction. By outputting a probability distribution for next musical parameter values, randomness is added into predictions, reducing the overly rigid and robotic playing style of many traditional RNNs. However, this randomness isn't a perfect solution, as the randomness is arbitrary. Humans don't just add pure gaussian randomness when improvising, such as the type that MDRNNs generate. Instead they add controlled, guided, and meaningful randomness, which balances exploration of new ideas to create a unique performance, with exploitation of known musical concepts to ensure the performance is coherent and structured. 
+
+Our paper is an attempt to more closely replicate this human improvisation process, while MDRNNs have achieved great progress in the field by combining the exploitative advantages of RNNs with the exploratory advantages of MDNs, these MDNs are unguided in their exploration. We aim to combine the randomness of MDNs with the structure of heuristic-based search algorithms, to create a system that can generate more expressive and coherent musical accompaniments.

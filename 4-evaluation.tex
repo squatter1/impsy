@@ -1,0 +1,23 @@
+\chapter{Evaluation}\label{chap:evaluation}
+
+\section{Tuning Hyperparameters}
+We want to have stats for a few key things, maybe each in its own subsection:
+1. How close does the MCTS search get to the 'perfect heuristic' eg completely matching the exact value of all parameters based on where they were for the user and how they were moving over time. This is a measure of how well the system is able to learn the user's preferences and how well it is able to predict the user's future preferences. Use this to generate hyperparameters for the MCTS search and other algorithm elements that are optimal (do we want tuning these parameters to be in a completely different section before the evaluation instead?). Eg show how this changes with 
+ - the number of iterations in the MCTS search (node expansions)
+ - the depth of the MCTS search, including adaptive depth options and comparing them
+ - the exploitation vs exploration parameters in the MCTS search
+ - how continuous MCTS is implemented, eg how 'far away' a successor needs to be to be considered a new node
+We also want to show metrics for each of the parameters, and individually how well they alone can be tracked and predicted.
+2. Comparisons of exploration and exploitation, by looking at probability of chosen node vs average probability of any node randomly chosen in the MDN distribution. If the chosen node probability is usually higher than average, shink how wide the MDN is as the current one is too explorative, if it is usually lower, increase the width of the MDN as the current one is too exploitative. Compare against the perceived optimal from Charles' study when only choosing randomly, I hypothesise that if the guidance of MCTS search is strong, it should learn toward wider distributions being optimal than are optimal with random selection.
+
+\section{Quantitative Evaluation}
+3. How well does the prediction of parameters over time actually work? Does the movement tracking of parameters lead to sensical results? Are added motifs actually reused in a sensible way? Are choruses repeated? Do parameters get wacky and completely off base after the system being left too long on its own?
+4. Look in the literature for how to evaluate the quality of generated music, and how to evaluate the quality of the system's predictions. Make direct comparisons to the same system without using the MCTS search.
+5. How well does the system perform in terms of computational resources? How long does it take to generate a piece of music? How much memory does it use? How much CPU does it use? How much does this change with the number of iterations in the MCTS search, the depth of the MCTS search, the exploitation vs exploration parameters in the MCTS search, and how continuous MCTS is implemented?
+
+\section{Qualitative Evaluation}
+User trial, my own experience, a piece I've created using the system, my personal thoughts on each of the parameters and how well they function.
+Comment on the previous sections points from the previous section in a more personal subjective manner, plus the following:
+- How well does the system perform in terms of user interaction? How easy is it to use? How intuitive is it to use? How much does the user need to interact with the system to get a good result? Note this for differing hyperparameters too.
+
+\section{Limitations}
