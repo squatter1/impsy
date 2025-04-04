@@ -1,83 +1,825 @@
-##################################################################################
-# The following citations are not completed or checked yet and should be updated #
-##################################################################################
+#############
+# TEMPLATES #
+#############
+@Book{,
+  title     = {},
+  author    = {},
+  volume    = {},
+  year      = {},
+  publisher = {},
+  doi       = {}
+}
+@Article{,
+  title     = {}, 
+  author    = {},
+  journal   = {},
+  volume    = {},
+  number    = {},
+  pages     = {},
+  year      = {},
+  doi       = {}
+}
+@InProceedings{,
+  title     = {},
+  author    = {},
+  booktitle = {Proceedings of the nth "" (ACRONYM YYYY)},
+  volume    = {},
+  number    = {},
+  pages     = {},
+  year      = {},
+  publisher = {},
+  doi       = {}
+}
+####################
+# ACTUAL CITATIONS #
+####################
+
+# Qmdp-net, deep learning for planning under partial observability in motion planning
+@InProceedings{Karkus2017QMDP,
+  title     = {{QMDP}-Net: Deep Learning for Planning under Partial Observability},
+  author    = {Karkus, Peter and Hsu, David and Lee, Wee Sun},
+  booktitle = {Proceedings of the 31st International Conference on Neural Information Processing Systems (NIPS 2017)},
+  pages     = {4705-4714},
+  year      = {2017},
+  publisher = {MIT Press},
+  doi       = {10.48550/arXiv.1703.06692}
+}
+
+# Motion planning where neural nets are used for evaluation at end of MCTS simulation, similar to AlphaGo
+@InProceedings{Weingertner2020MCTS,
+  title     = {Monte Carlo Tree Search With Reinforcement Learning for Motion Planning},
+  author    = {Weingertner, Philippe and Ho, Minnie and Timofeev, Andrey and Aubert, Sébastien and Pita-Gil, Guillermo},
+  booktitle = {Proceedings of the 23rd International Conference on Intelligent Transportation Systems (ITSC 2020)},
+  pages     = {1-7},
+  year      = {2020},
+  publisher = {IEEE Press},
+  doi       = {10.1109/ITSC45102.2020.9294697}
+}
+
+# Air combat decision making where neural networks provide action probabilities, and MCTS is used to search the action space
+@Article{Zhang2022AirCombat,
+  title     = {Autonomous maneuver decision-making method based on reinforcement learning and Monte Carlo tree search}, 
+  author    = {Zhang, Hongpeng  and Zhou, Huan  and Wei, Yujie  and Huang, Changqiang},
+  journal   = {Frontiers in Neurorobotics},
+  volume    = {16},
+  number    = {996412},
+  year      = {2022},
+  doi       = {10.3389/fnbot.2022.996412}
+}
+
+# Utilises neural network for action selection probabilities, and then uses MCTS to search the action space, they call this deep-MCTS
+@Article{Chen2020DeepMCTS,
+  title     = {Driving Maneuvers Prediction Based Autonomous Driving Control by Deep Monte Carlo Tree Search}, 
+  author    = {Chen, Jienan and Zhang, Cong and Luo, Jinting and Xie, Junfei and Wan, Yan},
+  journal   = {IEEE Transactions on Vehicular Technology},
+  volume    = {69},
+  number    = {7},
+  pages     = {7146-7158},
+  year      = {2020},
+  doi       = {10.1109/TVT.2020.2991584}
+}
+
+# Uses a GMM as the action distribution, and searches it with C-MCTS using both kernal methods and Baysian optimisation
+# Good Continuous MCTS Background section
+@InProceedings{Lei2021KBTree,
+  title     = {{KB-Tree}: Learnable and Continuous Monte-Carlo Tree Search for Autonomous Driving Planning},
+  author    = {Lanxin Lei and Ruiming Luo and Renjie Zheng and Jingke Wang and Jianwei Zhang and Cong Qiu and Liulong Ma and Liyang Jin and Ping Zhang and Junbo Chen},
+  booktitle = {Proceedings of the 34th International Conference on Intelligent Robots and Systems (IROS 2021)},
+  pages     = {4493--4500},
+  year      = {2021},
+  publisher = {{IEEE} Press},
+  doi       = {10.1109/IROS51168.2021.9636442}
+}
+
+# Grid beam search for NLP translation
+@InProceedings{Hokamp2017GridBeamSearch,
+  title     = {Lexically Constrained Decoding for Sequence Generation Using Grid Beam Search},
+  author    = {Chris Hokamp and Qun Liu},
+  booktitle = {Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (ACL 2017)},
+  pages     = {1535--1546},
+  year      = {2017},
+  publisher = {Association for Computational Linguistics},
+  doi       = {10.18653/v1/P17-1141}
+}
+
+# Google NLP translation
+@Article{Wu2016GoogleNMT,
+  title     = {Google's Neural Machine Translation System: Bridging the Gap between Human and Machine Translation}, 
+  author    = {Yonghui Wu and Mike Schuster and Zhifeng Chen and Quoc V. Le and Mohammad Norouzi and Wolfgang Macherey and Maxim Krikun and Yuan Cao and Qin Gao and Klaus Macherey and Jeff Klingner and Apurva Shah and Melvin Johnson and Xiaobing Liu and Lukasz Kaiser and Stephan Gouws and Yoshikiyo Kato and Taku Kudo and Hideto Kazawa and Keith Stevens and George Kurian and Nishant Patil and Wei Wang and Cliff Young and Jason Smith and Jason Riesa and Alex Rudnick and Oriol Vinyals and Greg Corrado and Macduff Hughes and Jeffrey Dean},
+  journal   = {ArXiv e-prints},
+  volume    = {1609.08144},
+  year      = {2016},
+  doi       = {10.48550/arXiv.1609.08144}
+}
+
+# Pluribus poker AI
+@Article{Brown2019Pluribus,
+  title     = {Superhuman {AI} for multiplayer poker}, 
+  author    = {Noam Brown  and Tuomas Sandholm},
+  journal   = {Science},
+  volume    = {365},
+  number    = {6456},
+  pages     = {885-890},
+  year      = {2019},
+  doi       = {10.1126/science.aay2400}
+}
+
+# AlphaZero
+@Article{Silver2018AlphaZero,
+  title     = {A general reinforcement learning algorithm that masters chess, shogi, and Go through self-play}, 
+  author    = {David Silver  and Thomas Hubert  and Julian Schrittwieser  and Ioannis Antonoglou  and Matthew Lai  and Arthur Guez  and Marc Lanctot  and Laurent Sifre  and Dharshan Kumaran  and Thore Graepel  and Timothy Lillicrap  and Karen Simonyan  and Demis Hassabis},
+  journal   = {Science},
+  volume    = {362},
+  number    = {6419},
+  pages     = {1140-1144},
+  year      = {2018},
+  doi       = {10.1126/science.aar6404}
+}
+
+# AlphaGoZero
+@Article{Silver2017AlphaGoZero,
+  title     = {Mastering the game of Go without human knowledge}, 
+  author    = {David Silver and Julian Schrittwieser and Karen Simonyan and Ioannis Antonoglou and Aja Huang and Arthur Guez and Thomas Hubert and Lucas Baker and Matthew Lai and Adrian Bolton and Yutian Chen and Timothy P. Lillicrap and Fan Hui and Laurent Sifre and George van den Driessche and Thore Graepel and Demis Hassabis},
+  journal   = {Nature},
+  volume    = {550},
+  pages     = {354--359},
+  year      = {2017},
+  doi       = {10.1038/nature24270}
+}
+
+# AlphaGo
+@Article{Silver2016AlphaGo,
+  title     = {Mastering the game of Go with deep neural networks and tree search}, 
+  author    = {David Silver and Aja Huang and Chris J. Maddison and Arthur Guez and Laurent Sifre and George van den Driessche and Julian Schrittwieser and Ioannis Antonoglou and Vedavyas Panneershelvam and Marc Lanctot and Sander Dieleman and Dominik Grewe andJohn Nham and Nal Kalchbrenner and Ilya Sutskever and Timothy P. Lillicrap and Madeleine Leach and Koray Kavukcuoglu and Thore Graepel and Demis Hassabis},
+  journal   = {Nature},
+  volume    = {529},
+  pages     = {484--489},
+  year      = {2016},
+  doi       = {10.1038/nature16961}
+}
+
+# Use of Baysian Optimisation in MCTS
+@InProceedings{Mern2021BayesianMCTS,
+  title     = {Bayesian Optimized Monte Carlo Planning},
+  author    = {John Mern and Anil Yildiz and Zachary Sunberg and Tapan Mukerji and Mykel J. Kochenderfer},
+  booktitle = {Proceedings of the 35th {AAAI} Conference on Artificial Intelligence (AAAI 2021)},
+  pages     = {11880--11887},
+  year      = {2021},
+  publisher = {{AAAI} Press},
+  doi       = {10.1609/AAAI.V35I13.17411}
+}
+
+# KR-UCT
+@InProceedings{Lisy2016KRUCT,
+  title     = {Monte Carlo Tree Search in Continuous Action Spaces with Execution Uncertainty},
+  author    = {Timothy Yee and Viliam Lis{\'{y}} and Michael H. Bowling},
+  booktitle = {Proceedings of the 25th International Joint Conference on Artificial Intelligence (IJCAI 2016)},
+  pages     = {690--697},
+  year      = {2016},
+  publisher = {AAAI Press}
+}
+
+# Survey of MCTS in 2012
+@Article{Browne2012MCTSSurvey,
+  title     = {A Survey of Monte Carlo Tree Search Methods}, 
+  author    = {Cameron Browne and Edward Jack Powley and Daniel Whitehouse and Simon M. Lucas and Peter I. Cowling and Philipp Rohlfshagen and Stephen Tavener and Diego Perez Liebana and Spyridon Samothrakis and Simon Colton},
+  journal   = {{IEEE} Transactions on Computational Intelligence and {AI} in Games},
+  volume    = {4},
+  number    = {1},
+  pages     = {1--43},
+  year      = {2012},
+  doi       = {10.1109/TCIAIG.2012.2186810}
+}
+
+# Invention of UCT for MCTS
+@InProceedings{Kocsis2006UCT,
+  title     = {Bandit Based Monte-Carlo Planning},
+  author    = {Levente Kocsis and Csaba Szepesv{\'{a}}ri},
+  booktitle = {Proceedings of the 17th European Conference on Machine Learning (ECML 2006)},
+  pages     = {282--293},
+  year      = {2006},
+  publisher = {Springer International Publishing},
+  doi       = {10.1007/11871842\_29}
+}
+
+# Invention of MCTS (CrazyStone)
+@InProceedings{Coulom2006MCTS,
+  title     = {Efficient Selectivity and Backup Operators in Monte-Carlo Tree Search},
+  author    = {R{\'e}mi Coulom},
+  booktitle = {Proceedings of the 5th International Conference on Computers and Games (CG 2006)},
+  pages     = {72--83},
+  year      = {2006},
+  publisher = {Springer International Publishing},
+  doi       = {10.1007/978-3-540-75538-8\_7}
+}
+
+# Use of monte carlo method with tree search
+@TechReport{Brugmann1993MonteCarloGo,
+  author      = {Br{\"u}gmann, Bernd},
+  title       = {Monte carlo go},
+  institution = {Physics Department, Syracuse University},
+  year        = {1993}
+}
+
+# Invention of the monte carlo method
+@Article{Metropolis1949MonteCarlo,
+  title     = {The monte carlo method}, 
+  author    = {Metropolis, Nicholas and Ulam, Stanislaw},
+  journal   = {Journal of the American Statistical Association},
+  volume    = {44},
+  number    = {247},
+  pages     = {335--341},
+  year      = {1949},
+  doi       = {10.2307/2280232}
+}
+
+# Beam search for multiple hypotheses in language translation
+@InProceedings{Sutskever2014Seq2Seq,
+  title     = {Sequence to Sequence Learning with Neural Networks},
+  author    = {Ilya Sutskever and Oriol Vinyals and Quoc V. Le},
+  booktitle = {Proceedings of the 28th International Conference on Neural Information Processing Systems (NIPS 2014)},
+  volume    = {2},
+  pages     = {3104–3112},
+  year      = {2014},
+  publisher = {MIT Press},
+  url       = {dl.acm.org/doi/10.5555/2969033.2969173}
+}
+
+# Survey on beam search for NLP
+@InProceedings{Steinbiss1994BeamNLP,
+  title     = {Improvements in beam search},
+  author    = {Volker Steinbiss and Bach{-}Hiep Tran and Hermann Ney},
+  booktitle = {Proceedings of the 3rd International Conference on Spoken Language Processing (ICSLP 1994)},
+  pages     = {2143--2146},
+  year      = {1994},
+  publisher = {International Science Community Association},
+  doi       = {10.21437/ICSLP.1994-538}
+}
+
+# One of the first uses of beam search, for speech recognition
+@PhdThesis{Lowerre1976Harpy,
+  title        = {The harpy speech recognition system.},
+  author       = {Lowerre, Bruce T},
+  year         = {1976},
+  school       = {Carnegie Mellon University},
+}
+
+# Beam searh chapter in textbook
+@InCollection{Bisiani1992BeamSearch,
+  title        = {Beam Search},
+  author       = {Bisiani, R.},
+  booktitle    = {Encyclopedia of Artificial Intelligence},
+  volume       = {2},
+  edition      = {2},
+  pages        = {1467--1468},
+  year         = {1992},
+  publisher    = {John Wiley and Sons}
+}
+
+# Better matching specific emotions by guiding LM music results with MCTS
+@InProceedings{Ferreira2022LmMcts,
+  title     = {Controlling Perceived Emotion in Symbolic Music Generation with Monte Carlo Tree Search},
+  author    = {Lucas N. Ferreira and Lili Mou and Jim Whitehead and Levi H. S. Lelis},
+  booktitle = {Proceedings of the 18th {AAAI} Conference on Artificial Intelligence
+                  and Interactive Digital Entertainment (AIIDE 2022)},
+  volume    = {25},
+  pages     = {3763-3772},
+  year      = {2022},
+  publisher = {{AAAI} Press},
+  doi       = {10.1109/TMM.2022.3165718}
+}
+
+# Use of a pure MCTS approach to generate music
+@Article{Fu2023MCTS,
+  title     = {Generating High Coherence Monophonic Music Using Monte-Carlo Tree Search}, 
+  author    = {Xiao Fu and Hangyu Deng and Xin Yuan and Jinglu Hu},
+  journal   = {{IEEE} Transactions on Multimedia},
+  volume    = {25},
+  number    = {},
+  pages     = {3763--3772},
+  year      = {2023},
+  doi       = {10.1109/TMM.2022.3165718}
+}
+
+# Survey of constraint based composition
+@Article{Anders2011ConstraintSurvey,
+  title     = {Constraint programming systems for modeling music theories and composition}, 
+  author    = {Torsten Anders and Eduardo Reck Miranda},
+  journal   = {{ACM} Computing Surveys},
+  volume    = {43},
+  number    = {4},
+  year      = {2011},
+  doi       = {10.1145/1978802.1978809}
+}
+
+# CHORAL, harmonisation four-part chorales in the style of Bach
+@Article{Ebicoglu1988CHORAL,
+  title     = {An Expert System for Harmonizing Four-Part Chorales}, 
+  author    = {Kemal Ebcio{\u{g}}lu},
+  journal   = {Computer Music Journal},
+  volume    = {12},
+  number    = {3},
+  pages     = {43--51},
+  year      = {1988},
+  doi       = {10.2307/3680335}
+}
+
+# Grammar for jazz chords
+@Article{Steedman1984JazzGrammar,
+  title     = {A Generative Grammar for Jazz Chord Sequences}, 
+  author    = {Mark J. Steedman},
+  journal   = {Music Perception: An Interdisciplinary Journal},
+  volume    = {2},
+  number    = {1},
+  pages     = {52--77},
+  year      = {1984},
+  doi       = {10.2307/40285282}
+}
+
+# ILLIAC Suite, first computer music composition
+@Book{Hiller1959ILLIAC,
+  title     = {Experimental Music: Composition With an Electronic Computer},
+  edition   = {2nd},
+  author    = {Lejaren A. Hiller and Leonard M. Isaacson},
+  pages     = {5--7},
+  year      = {1959},
+  publisher = {McGraw-Hill},
+  note      = {Reprinted, Westport, Conn.: Greenwood Press, 1979},
+}
+
+@Article{Moorer1972ComputerMusic,
+  title     = {Music and Computer Composition}, 
+  author    = {James Anderson Moorer},
+  journal   = {Communications of the Association for Computing Machinery},
+  volume    = {15},
+  number    = {2},
+  pages     = {104--113},
+  year      = {1972},
+  doi       = {10.1145/361254.361265}
+}
+
+# MDRNNs for scetching
+@Article{Ha2017Sketch,
+  title     = {A Neural Representation of Sketch Drawings}, 
+  author    = {David Ha and Douglas Eck},
+  journal   = {ArXiv e-prints},
+  volume    = {1704.03477},
+  year      = {2017},
+  doi       = {10.48550/arXiv.1704.03477}
+}
+
+# MDRNNs for handwriting
+@Article{Graves2013Handwriting,
+  title     = {Generating Sequences With Recurrent Neural Networks}, 
+  author    = {Alex Graves},
+  journal   = {ArXiv e-prints},
+  volume    = {1308.0850},
+  year      = {2013},
+  doi       = {10.48550/arXiv.1308.0850}
+}
+
+# RoboJam by Charles, uses MDRNNs
+@InProceedings{Martin2018RoboJam,
+  title     = {{RoboJam}: {A} Musical Mixture Density Network for Collaborative Touchscreen Interaction},
+  author    = {Charles Patrick Martin and Jim T{\o}rresen},
+  booktitle = {Proceedings of the 7th International Conference on Computational Intelligence in Music, Sound, Art and Design (EvoMUSART 2018)},
+  pages     = {161--176},
+  year      = {2018},
+  publisher = {Springer International Publishing},
+  doi       = {10.1007/978-3-319-77583-8\_11}
+}
+
+# Creation of MDNs
+@TechReport{Bishop1994MDNs,
+  author      = {Bishop, Christopher M},
+  title       = {Mixture density networks},
+  institution = {Neural Computing Research Group, Aston University},
+  year        = {1994},
+  number      = {NCRG/97/004}
+}
+
+# DeepJ: Can stick to a style even when trained on multiple
+@InProceedings{Mao2018DeepJ,
+  title     = {{DeepJ}: Style-Specific Music Generation},
+  author    = {Huanru Henry Mao and Taylor Shin and Garrison W. Cottrell},
+  booktitle = {Proceedings of the 12th {IEEE} International Conference on Semantic Computing (ICSC 2018)},
+  pages     = {377--382},
+  year      = {2018},
+  publisher = {{IEEE} Computer Society},
+  doi       = {10.1109/ICSC.2018.00077}
+}
+
+# DeepBach: LSTM for Bach chorales
+@InProceedings{Hadjeres2017DeepBach,
+  title     = {{DeepBach}: a Steerable Model for Bach Chorales Generation},
+  author    = {Ga{\"e}tan Hadjeres and Fran{\cc}ois Pachet and Frank Nielsen},
+  booktitle = {Proceedings of the 34th International Conference on Machine Learning (ICML 2017)},
+  volume    = {70},
+  pages     = {1362--1371},
+  year      = {2017},
+  publisher = {Proceedings of Machine Learning Research},
+  doi       = {10.48550/arXiv.1612.01010}
+}
+
+# Translation invariance for musical LSTMs
+@InProceedings{Johnson2017InvariantLSTMs,
+  title     = {Generating Polyphonic Music Using Tied Parallel Networks},
+  author    = {Daniel D. Johnson},
+  booktitle = {Proceedings of the 6th International Conference on Computational Intelligence in Music, Sound, Art and Design (EvoMUSART 2017)},
+  pages     = {128--143},
+  year      = {2017},
+  publisher = {Springer International Publishing},
+  doi       = {10.1007/978-3-319-55750-2\_9}
+}
+
+# Survey paper on deep learning in music generation
+@Article{Ji2024DeepLearningInMusicSurvey,
+  title     = {A Survey on Deep Learning for Symbolic Music Generation: Representations, Algorithms, Evaluations, and Challenges}, 
+  author    = {Shulei Ji and Xinyu Yang and Jing Luo},
+  journal   = {{ACM} Computing Surveys},
+  volume    = {56},
+  number    = {1},
+  year      = {2024},
+  doi       = {10.1145/3597493}
+}
+
+# First use of LSTMs in music generation
+@InProceedings{Eck2002LSTMMusic,
+  title     = {Finding temporal structure in music: blues improvisation with {LSTM} recurrent networks},
+  author    = {Douglas Eck and J{\"u}rgen Schmidhuber},
+  booktitle = {Proceedings of the 12th {IEEE} Workshop on Neural Networks for Signal Processing (NNSP 2002)},
+  pages     = {747--756},
+  year      = {2002},
+  publisher = {{IEEE}},
+  doi       = {10.1109/NNSP.2002.1030094}
+}
+
+# Creater of LSTM to fix issues with RNNs
+@Article{Hochreiter1997LSTM,
+  title     = {Long Short-Term Memory}, 
+  author    = {Sepp Hochreiter and J{\"u}rgen Schmidhuber},
+  journal   = {Neural Computation},
+  volume    = {9},
+  number    = {8},
+  pages     = {1735--1780},
+  year      = {1997},
+  doi       = {10.1162/NECO.1997.9.8.1735}
+}
+
+# Concert, RNN with full backpropagation but no LSTM
+@Article{Mozer1994CONCERT,
+  title     = {Neural Network Music Composition by Prediction: Exploring the Benefits of Psychoacoustic Constraints and Multi-scale Processing}, 
+  author    = {Michael C. Mozer},
+  journal   = {Connection Science},
+  volume    = {6},
+  pages     = {247--280},
+  year      = {1994},
+  doi       = {10.1080/09540099408915726}
+}
+
+# Early use of RNNs without LSTM
+@InProceedings{Franklin2000RNNJazz,
+  title     = {Multi-phase learning for jazz improvisation and interaction},
+  author    = {Judy A. Franklin},
+  booktitle = {Proceedings of the 8th Biennial Symposium on Arts and Technology (BSAT 2000)},
+  year      = {2000},
+  publisher = {Connecticut College}
+}
+
+# RNN without LSTM for algorithmic composition
+@Article{Todd1989RNNComposition,
+  title     = {A Connectionist Approach to Algorithmic Composition}, 
+  author    = {Peter M. Todd},
+  journal   = {Computer Music Journal},
+  volume    = {13},
+  number    = {4},
+  pages     = {27--43},
+  year      = {1989},
+  doi       = {10.2307/3679551}
+}
+
+# Feedforward musical style classification
+@InProceedings{Dannenberg1997StyleClassification,
+  title     = {A Machine Learning Approach to Musical Style Recognition},
+  author    = {Roger B. Dannenberg and Belinda Thom and David Watson},
+  booktitle = {Proceedings of the 23rd International Computer Music Conference (ICMC 1997)},
+  year      = {1997},
+  publisher = {Michigan Publishing},
+  url       = {https://hdl.handle.net/2027/spo.bbp2372.1997.090}
+}
+
+# Feedforward chord classification
+@Article{Laden1989ChordClassification,
+  title     = {The representation of pitch in a neural net model of chord classification}, 
+  author    = {Laden, Bernice and Keefe, Douglas H},
+  journal   = {Computer Music Journal},
+  volume    = {13},
+  number    = {4},
+  pages     = {12--26},
+  year      = {1989},
+  doi       = {10.2307/3679550}
+}
+
+# Explains the RNN gradient explosion and vanishing problems
+@Article{Bengio1994RNNGradientProblems,
+  title     = {Learning long-term dependencies with gradient descent is difficult}, 
+  author    = {Yoshua Bengio and Patrice Y. Simard and Paolo Frasconi},
+  journal   = {{IEEE} Transactions on Neural Networks},
+  volume    = {5},
+  number    = {2},
+  pages     = {157--166},
+  year      = {1994},
+  doi       = {10.1109/72.279181}
+}
+
+# Explanation of basic ML concepts
+@Article{LeCun2015DeepLearningConcepts,
+  title     = {Deep learning}, 
+  author    = {LeCun, Yann and Bengio, Yoshua and Hinton, Geoffrey},
+  journal   = {Nature},
+  volume    = {521},
+  number    = {7553},
+  pages     = {436-444},
+  year      = {2015},
+  doi       = {10.1038/nature14539}
+}
+
+# Contains an example feedforward network for rhythm
+@Article{Dolson1989Feedforward,
+  title     = {Machine tongues {XII}: Neural networks}, 
+  author    = {Dolson, Mark},
+  journal   = {Computer Music Journal},
+  volume    = {13},
+  number    = {3},
+  pages     = {28--40},
+  year      = {1989}
+}
+
+# Use of HMMs for generating chord accompaniments to melodies
+@InProceedings{Allan2004HMM,
+  title     = {Harmonising Chorales by Probabilistic Inference},
+  author    = {Moray Allan and Christopher K. I. Williams},
+  booktitle = {Proceedings of the 17th International Conference on Neural Information Processing Systems (NIPS 2004)},
+  pages     = {25--32},
+  year      = {2004},
+  publisher = {MIT Press},
+  url       = {https://proceedings.neurips.cc/paper_files/paper/2004/file/b628386c9b92481fab68fbf284bd6a64-Paper.pdf}
+}
+
+# Creator of variable order markov models
+@Article{Ron1996VOMM,
+  title     = {The Power of Amnesia: Learning Probabilistic Automata with Variable Memory Length}, 
+  author    = {Dana Ron and Yoram Singer and Naftali Tishby},
+  journal   = {Machine Learning},
+  volume    = {25},
+  pages     = {117--149},
+  year      = {1996},
+  doi       = {10.1023/A:1026490906255}
+}
+
+# Talks about markov model orders in music
+@Article{Zicarelli1987JamFactory,
+  title     = {M and Jam Factory}, 
+  author    = {David Zicarelli},
+  journal   = {Computer Music Journal},
+  volume    = {11},
+  number    = {4},
+  pages     = {13--29},
+  year      = {1987},
+  doi       = {10.2307/3680237}
+}
+
+# Survey of deep learning in music generation
+@PhdThesis{Collins2007InteractiveMusic,
+  title     = {Towards autonomous agents for live computer music : realtime machine listening and interactive music systems},
+  author    = {Nicholas M. Collins},
+  school    = {University of Cambridge},
+  year      = {2007},
+  url       = {https://api.semanticscholar.org/CorpusID:26846600},
+}
+
+# Combining interactive and imitation with markov models
+@InProceedings{Pachet2002Continuator,
+  title     = {The Continuator: Musical Interaction with Style},
+  author    = {Fran{\c{c}}ois Pachet},
+  booktitle = {Proceedings of the 28th International Computer Music Conference (ICMC 2002)},
+  year      = {2002},
+  publisher = {Michigan Publishing},
+  url       = {https://hdl.handle.net/2027/spo.bbp2372.2002.044}
+}
+
+# Temporal regularlity
+@Article{Large2002TemporalRegularity,
+  title     = {Perceiving temporal regularity in music}, 
+  author    = {Edward W. Large and Caroline Palmer},
+  journal   = {Cognitive Science},
+  volume    = {26},
+  number    = {1},
+  pages     = {1--37},
+  year      = {2002},
+  doi       = {10.1016/S0364-0213(01)00057-X}
+}
+
+# Rhythmic Stability parameter
+@InProceedings{Desain2002RhythmicStability,
+  title     = {Rhythmic stability as explanation of category size},
+  author    = {Peter Desain and Henkjan Honing},
+  booktitle = {Proceedings of the 7th International Conference on Music Perception \& Cognition (ICMPC 2002)},
+  pages     = {111-115},
+  year      = {202},
+  publisher = {Architecture, Media, Politics, Society and Causal Productions},
+  url       = {https://hdl.handle.net/11245/1.206041}
+}
+
+# Review of early netwroked instruments
+@InProceedings{Renaud2007NetworkedMusic,
+  title     = {Networked music performance: State of the art},
+  author    = {Renaud, Alain and Car{\^o}t, Alexander and Rebelo, Pedro},
+  booktitle = {Proceedings of the 30th AES International Conference on Intelligent Audio Environments (AES 2007)},
+  pages     = {16--22},
+  year      = {2007},
+  publisher = {Audio Engineering Society},
+  url       = {https://aes2.org/publications/elibrary-page/?id=13914}
+}
+
+# Collaborative networked 'laptop ensemble' type performance system
+@InProceedings{Wang2009Slork,
+  title     = {Stanford Laptop Orchestra ({SLOrk})},
+  author    = {Ge Wang and Nicholas J. Bryan and Jieun Oh and Robert Hamilton},
+  booktitle = {Proceedings of the 35th International Computer Music Conference (ICMC 2009)},
+  year      = {2009},
+  publisher = {Michigan Publishing},
+  url       = {https://hdl.handle.net/2027/spo.bbp2372.2009.114}
+}
+
+# Famous Augmented Piano paper
+@Article{McPherson2010AugmentedPiano,
+  title     = {The Magnetic Resonator Piano: Electronic Augmentation of an Acoustic Grand Piano}, 
+  author    = {Andrew McPherson},
+  journal   = {Journal of New Music Research},
+  volume    = {39},
+  number    = {3},
+  pages     = {189--202},
+  year      = {2010},
+  doi       = {10.1080/09298211003695587}
+}
+
+# Original hyperinstruments, very early augmented instrument paper
+@InProceedings{Machover1989Hyperinstruments,
+  title     = {Hyperinstruments: Musically Intelligent and Interactive Performance and Creativity Systems},
+  author    = {Tod Machover and Joseph T. Chung},
+  booktitle = {Proceedings of the 15th International Computer Music Conference (ICMC 1989)},
+  year      = {1989},
+  publisher = {Michigan Publishing},
+  url       = {https://hdl.handle.net/2027/spo.bbp2372.1989.046}
+}
+
+# Advanced mapping strategies for text to music generation
+@Article{Wu2024MusicControlNet,
+  title     = {Music ControlNet: Multiple Time-Varying Controls for Music Generation}, 
+  author    = {Shih{-}Lun Wu and Chris Donahue and Shinji Watanabe and Nicholas J. Bryan},
+  journal   = {IEEE/ACM Transactions on Audio, Speech, and Language Processing},
+  volume    = {32},
+  pages     = {2692--2703},
+  year      = {2024},
+  doi       = {10.1109/TASLP.2024.3399026}
+}
 
 # This is IMPSY, the main basis for our paper
-@article{MartinMDRNNinNIME2019,
-  author       = {Charles P. Martin and Jim T{\o}rresen},
-  title        = {An Interactive Musical Prediction System with Mixture Density Recurrent Neural Networks},
-  archivePrefix = {arXiv},
-  eprint = {abs/1904.05009},
-  year         = {2019},
-  doi = {10.48550/arXiv.1904.05009}
+@InProceedings{Martin2019IMPSY,
+  title     = {An Interactive Musical Prediction System with Mixture Density Recurrent Neural Networks},
+  author    = {Charles Patrick Martin and Jim T{\o}rresen},
+  booktitle = {Proceedings of the 19th International Conference on New Interfaces for Musical Expression (NIME 2019)},
+  pages     = {260--265},
+  year      = {2019},
+  publisher = {Zenodo},
+  doi       = {10.5281/ZENODO.3672952}
 }
 
-@book{Collins2017Cambridge,
-  title={The Cambridge companion to electronic music},
-  author={Collins, Nick and d'Escriv{\'a}n, Julio},
-  year={2017},
-  publisher={Cambridge University Press}
+@Book{Collins2012Cambridge,
+  title     = {The Cambridge Companion to Electronic Music},
+  author    = {Nick Collins and Julio D'Escriv\'an},
+  year      = {2012},
+  publisher = {Cambridge University Press},
+  doi       = {10.1017/CCOL9780521868617}
 }
 
-@article{Puckette2002Max,
-  title={Max at seventeen},
-  author={Puckette, Miller},
-  journal={Computer Music Journal},
-  volume={26},
-  number={4},
-  pages={31--43},
-  year={2002},
-  publisher={JSTOR}
+@Article{Puckette2002Max,
+  title     = {Max at Seventeen}, 
+  author    = {Miller S. Puckette},
+  journal   = {Computer Music Journal},
+  volume    = {26},
+  number    = {4},
+  pages     = {31--43},
+  year      = {2002},
+  doi       = {10.1162/014892602320991356}
 }
 
-@inproceedings{Puckette1997PD,
-  title={Pure data},
-  author={Puckette, Miller S and others},
-  booktitle={ICMC},
-  year={1997}
+@InProceedings{Puckette1997PD,
+  title     = {Pure Data},
+  author    = {Miller S. Puckette},
+  booktitle = {Proceedings of the 23rd International Computer Music Conference (ICMC 1997)},
+  year      = {1997},
+  publisher = {Michigan Publishing},
+  url       = {https://hdl.handle.net/2027/spo.bbp2372.1997.060},
 }
 
 # Used markov models to generate accompaniment for voal melodies
-@inproceedings{Simon2008MarkovAccompany,
-  title={MySong: automatic accompaniment generation for vocal melodies},
-  author={Simon, Ian and Morris, Dan and Basu, Sumit},
-  booktitle={Proceedings of the SIGCHI conference on human factors in computing systems},
-  pages={725--734},
-  year={2008}
+@InProceedings{Simon2008MarkovAccompany,
+  title     = {{MySong}: automatic accompaniment generation for vocal melodies},
+  author    = {Ian Simon and Dan Morris and Sumit Basu},
+  booktitle = {Proceedings of the 28th Conference on Human Factors in Computing Systems (CHI 2008),},
+  pages     = {725--734},
+  year      = {2008},
+  publisher = {Association for Computing Machinery},
+  doi       = {10.1145/1357054.1357169}
 }
 
 # LSTM paper taking visual data (Kinect 3d camera) of movement and translating to melody
-@inproceedings{Takase2021CameraMelodyLSTM,
-  author       = {Takase, Haruya and
-                  Shiramatsu, Shun},
-  title        = {{Support System for Improvisational Ensemble Based 
-                   on Long Short-Term Memory Using Smartphone Sensor}},
-  booktitle    = {{Proceedings of the International Conference on New 
-                   Interfaces for Musical Expression}},
-  year         = 2021,
-  pages        = {394--398},
-  publisher    = {Zenodo},
-  month        = may,
-  venue        = {Birmingham, UK},
-  doi          = {10.5281/zenodo.4813434},
-  url          = {https://doi.org/10.5281/zenodo.4813434}
+@InProceedings{Takase2021CameraMelodyLSTM,
+  title     = {Support System for Improvisational Ensemble Based on Long Short-Term Memory Using Smartphone Sensor},
+  author    = {Haruya Takase and Shun Shiramatsu},
+  booktitle = {Proceedings of the 20th International Conference on New Interfaces for Musical Expression (NIME 2020)},
+  pages     = {394--398},
+  year      = {2020},
+  publisher = {Zenodo},
+  doi       = {10.5281/ZENODO.4813434}
 }
 
 # Transfer of initiative in a multi human and robot collaborative performance, shows how far real-time interactive NIMEs can go
-@inproceedings{Weinberg2018MultiHumanRobot,
-  author       = {Weinberg, Gil and
-                  Blosser, Brian and
-                  Mallikarjuna, Trishul and
-                  Raman, Aparna},
-  title        = {{The Creation of a Multi-Human, Multi-Robot 
-                   Interactive Jam Session}},
-  booktitle    = {{Proceedings of the International Conference on New 
-                   Interfaces for Musical Expression}},
-  year         = 2018,
-  pages        = {70--73},
-  publisher    = {Zenodo},
-  month        = feb,
-  venue        = {Pittsburgh, PA, United States},
-  doi          = {10.5281/zenodo.1177705},
-  url          = {https://doi.org/10.5281/zenodo.1177705}
+@InProceedings{Weinberg2018MultiHumanRobot,
+  title     = {The Creation of a Multi-Human, Multi-Robot Interactive Jam Session},
+  author    = {Gil Weinberg and Brian Blosser and Trishul Mallikarjuna and Aparna Raman},
+  booktitle = {Proceedings of the 9th International Conference on New Interfaces for Musical Expression (NIME 2009)},
+  pages     = {70--73},
+  year      = {2009},
+  publisher = {Zenodo},
+  doi       = {10.5281/ZENODO.1177705}
+}
+
+# The Radio Baton and COnductor Program 'review'
+@Article{Mathews1991RadioBaton,
+  title     = {The Radio Baton and Conductor Program, or: Pitch, the Most Important and Least Expressive Part of Music}, 
+  author    = {Max V. Mathews},
+  journal   = {Computer Music Journal},
+  volume    = {15},
+  number    = {4},
+  pages     = {37--46},
+  year      = {1991},
+  doi       = {10.2307/3681070}
+}
+
+# Original conductor program paper
+@Article{Lawson1977Conductor,
+  title     = {Computer program to control a digital real-time sound synthesizer}, 
+  author    = {Lawson, James and Mathews, Max V},
+  journal   = {Computer Music Journal},
+  volume    = {1},
+  number    = {4},
+  pages     = {16--21},
+  year      = {1977}
+}
+
+# Evaluation on the use of the wiimote as a potential musical controller
+@InProceedings{Kiefer2008Wiimote,
+  title     = {{HCI} Methodology For Evaluating Musical Controllers: {A} Case Study},
+  author    = {Chris Kiefer and Nick Collins and Geraldine Fitzpatrick},
+  booktitle = {Proceedings of the 8th International Conference on New Interfaces for Musical Expression (NIME 2008)},
+  pages     = {87--90},
+  year      = {2008},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.1179577}
+}
+
+# Broad uses of the Microsoft Kinect and its technology
+@Article{Zhang2012Kinect,
+  title     = {Microsoft Kinect Sensor and Its Effect}, 
+  author    = {Zhengyou Zhang},
+  journal   = {{IEEE} Multimedia},
+  volume    = {19},
+  number    = {2},
+  pages     = {4--10},
+  year      = {2012},
+  doi       = {10.1109/MMUL.2012.24}
+}
+
+# How to generally map controls to musical outputs
+@InProceedings{Hunt2000MappingStrategies,
+  title     = {Towards a Model for Instrumental Mapping in Expert Musical Interaction},
+  author    = {Andy Hunt and Marcelo M. Wanderley and Ross Kirk},
+  booktitle = {Proceedings of the 26th International Computer Music Conference (ICMC 2000)},
+  year      = {2000},
+  publisher = {Michigan Publishing},
+  url       = {https://hdl.handle.net/2027/spo.bbp2372.2000.173}
+}
+
+# Wekinator, machine learning tool for easily designing new mapping strategies
+@InProceedings{Fiebrink2009Wekinator,
+  title     = {A Meta-Instrument for Interactive, On-the-Fly Machine Learning},
+  author    = {Rebecca Fiebrink and Dan Trueman and Perry R. Cook},
+  booktitle = {Proceedings of the 9th International Conference on New Interfaces for Musical Expression (NIME 2009)},
+  pages     = {280--285},
+  year      = {2009},
+  publisher = {Zenodo},
+  doi       = {10.5281/ZENODO.1177513}
 }

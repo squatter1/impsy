@@ -4,11 +4,15 @@
 
 
 \section{Quantitative Evaluation}
+NOTE: To evaluate with more MCTS evaluations in the same time frame, we can emulate a higher power computer by running the algorithm for 10x longer to produce outputs, but then compressing them to their original intended duration (run everything on 0.1x speed).
+
 3. How well does the prediction of parameters over time actually work? Does the movement tracking of parameters lead to sensical results? Are added motifs actually reused in a sensible way? Are choruses repeated? Do parameters get wacky and completely off base after the system being left too long on its own?
 
 4. Look in the literature for how to evaluate the quality of generated music, and how to evaluate the quality of the system's predictions. Make direct comparisons to the same system without using the MCTS search.
 
 5. How well does the system perform in terms of computational resources? How long does it take to generate a piece of music? How much memory does it use? How much CPU does it use? How much does this change with the number of iterations in the MCTS search, the depth of the MCTS search, the exploitation vs exploration parameters in the MCTS search, and how continuous MCTS is implemented?
+
+6. Compare the predictive power of the model, generate a test set of improvisations, and test the accuracy of predicting the next note in the improvisation both with and without the MCTS search.
 
 \section{Qualitative Evaluation}
 User trial, my own experience, a piece I've created using the system, my personal thoughts on each of the parameters and how well they function. Try to make this sem-formal: I sat down and tried 5 performances, with these 5 aims, etc etc.

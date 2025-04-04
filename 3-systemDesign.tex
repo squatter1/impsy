@@ -6,6 +6,8 @@ In this chapter we introduce the main content of our research. We begin by provi
 TODO
 
 \section{Monte-Carlo Tree Search}
+TODO: we need a figure somewhere showing our selection algorithm (progressive widening with baysian optimisation)
+
 The core component of our system is the use of search to generate predictions. For this, a Monte Carlo Tree Search (MCTS) algorithm is used as the basis for generating and searching these prediction trees. MCTS is a heuristic search algorithm for decision processes, most notably employed in game playing and planning.
 
 MCTS builds a search tree incrementally and asymmetrically, focusing on the most promising parts of the search space. The algorithm consists of four main steps: selection, expansion, simulation, and backpropagation.
@@ -63,6 +65,8 @@ We want to put any general graphics pertaining to heuristics more generally here
 \subsection{Setting Heuristics Through Human Performance}
 By default, for each heuristic, the system tracks both the value of the heuristic, and the rate of change of the heuristic, being its derivative with respect to time. Higher order derivatives can also be added to track more complex patterns of change in these values. In this way, the system tracks useful metrics about the the state of the piece, and then can replicate these patterns when it takes over in its improvisation.
 
+TODO: We could just do this with another LSTM trained on the same training data? Use LSTM to estimate values of parameters for next step, and then use these as the heuristic?
+
 TODO figure
 
 \subsection{Identifying Patterns of Repetition}
@@ -82,6 +86,8 @@ Hence, to generate heuristics, we require a set of parameters to track in human 
 TODO: a tempo parameter which tracks BPM, and excludes subdivisions, eg notes approx in orders of magnitude of 2 from the BPM (or even triplets and other stuff? Test this.). Put the implementation here
 
 \subsection{EACH OF THE OTHER PARAMETERS GOES IN A SUBSECTION HERE}
+Maybe use rhythmic stability?~\citep{Desain2002RhythmicStability}
+Look into temporal regularity~\citep{Large2002TemporalRegularity}
 
 \section{Human Interaction}
 TODO: It would be really good as part of the project to include more human interaction, eg allow a human to modify parameters during the AI improvisation through a UI, and even to train new parameters so that implementing new ones doesn't require code (a little UI system for which parameters to use and how to create new ones?). This is however a stretch goal for the project, and not necessary for the core functionality. If these subsections don't end up being completed, add them into future work.
