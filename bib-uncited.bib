@@ -1,28 +1,16 @@
-# Charles paper on using Mixture Density Network for a NIME
-# TODO: check if this is MDRNN or just an MDN, if so maybe we separate MDN into a subsection and include an MDRNN section afterwards?
-@InProceedings{MartinRoboJam2018,
-  author={Martin, Charles Patrick and Torresen, Jim},
-  editor={Liapis, Antonios and Romero Cardalda, Juan Jes{\'u}s and Ek{\'a}rt, Anik{\'o}},
-  title={RoboJam: A Musical Mixture Density Network for Collaborative Touchscreen Interaction},
-  booktitle={Computational Intelligence in Music, Sound, Art and Design},
-  year={2018},
-  publisher={Springer International Publishing},
-  pages={161--176},
-  doi={10.1007/978-3-319-77583-8_11},
-  isbn={978-3-319-77583-8}
+# Discusses on a high level RoboJam and the Neural Touchscreen Ensemble, and other IMPSs and connection to human thought process, etc
+@Article{Martin2018InteractiveMusic,
+  title     = {Deep Predictive Models in Interactive Music}, 
+  author    = {Charles P. Martin and Kai Olav Ellefsen and Jim T{\o}rresen},
+  journal   = {ArXiv e-prints},
+  volume    = {1801.10492},
+  year      = {2018},
+  doi       = {10.48550/arXiv.1801.10492}
 }
 
-# Important paper for inclusion in the MDRNN background section, explaining their usefulness in a way which will easily link to computer music
-@article{MartinMDRNN2019,
-  author       = {Kai Olav Ellefsen and Charles Patrick Martin and Jim T{\o}rresen},
-  title        = {How do Mixture Density RNNs Predict the Future?},
-  archivePrefix = {arXiv},
-  eprint = {abs/1901.07859},
-  year         = {2019},
-  doi = {10.48550/arXiv.1901.07859}
-}
-
-# TODO: Deep Predictive Models in Interactive Music?
+#########################
+# INCOMPLETE REFERENCES #
+#########################
 
 # A real-time interactive human-machine performance thing, could also be mentioned in the final section as it attempts to balance matching human performer vs doing its own thing with only machine learning
 @inproceedings{Beyls2018HumanMachineImprov,
@@ -75,8 +63,6 @@
   url          = {https://doi.org/10.5281/zenodo.1177875}
 }
 
-
-
 # Start of machine learning section, review of literature including general weaknesses of ML in music (or maybe include weaknesses at start of next section? or combo?)
 @inproceedings{Jourdan2024MachineLearningMusicReview,
   author       = {Jourdan, Théo and
@@ -92,24 +78,6 @@
   venue        = {Mexico City, Mexico},
   doi          = {10.5281/zenodo.11189198},
   url          = {https://doi.org/10.5281/zenodo.11189198}
-}
-
-# A machine learning for instruments tool, generates mappings from control devices to outputs in real-time
-@article{Fiebrink2009Wekinator,
-  title={A meta-instrument for interactive, on-the-fly machine learning},
-  author={Fiebrink, Rebecca and Trueman, Daniel and Cook, Perry R and others},
-  year={2009}
-}
-
-
-
-# Used markov models for harmoinising chorales
-@article{Allan2004MarkovHarmonise,
-  title={Harmonising chorales by probabilistic inference},
-  author={Allan, Moray and Williams, Christopher},
-  journal={Advances in neural information processing systems},
-  volume={17},
-  year={2004}
 }
 
 # RNN taking some basic parameters from the performers to guide generative performance in real time
@@ -129,34 +97,6 @@
   url          = {https://doi.org/10.5281/zenodo.3672874}
 }
 
-# Examplins use of RNNs, eg works with sequential data, takes input, prev state, and current time step, eg holds information from past time steps
-@book{Chollet2021RNNBook,
-  title={Deep learning with Python},
-  author={Chollet, Francois},
-  year={2021},
-  publisher={Simon and Schuster}
-}
-
-# Bidirections RNNs creator
-@article{Schuster1997BidirectionalRNN,
-  title={Bidirectional recurrent neural networks},
-  author={Schuster, Mike and Paliwal, Kuldip K},
-  journal={IEEE transactions on Signal Processing},
-  volume={45},
-  number={11},
-  pages={2673--2681},
-  year={1997},
-  publisher={Ieee}
-}
-
-# Creater of LSTM to fix issues with RNNs
-@article{Hochreiter1997LSTM,
-  title={Long Short-term Memory},
-  author={Hochreiter, S},
-  journal={Neural Computation MIT-Press},
-  year={1997}
-}
-
 # LSTM based on text (eg predict C:maj from G:maj) for music composition
 @article{Choi2016TextLSTM,
   title={Text-based LSTM networks for automatic music composition},
@@ -173,6 +113,18 @@
   pages={4502--4506},
   year={2020},
   organization={IEEE}
+}
+
+# Bidirections RNNs creator (if using below)
+@article{Schuster1997BidirectionalRNN,
+  title={Bidirectional recurrent neural networks},
+  author={Schuster, Mike and Paliwal, Kuldip K},
+  journal={IEEE transactions on Signal Processing},
+  volume={45},
+  number={11},
+  pages={2673--2681},
+  year={1997},
+  publisher={Ieee}
 }
 
 # Bidirectional LSTM accompaniments
@@ -310,15 +262,3 @@
   doi          = {10.5281/zenodo.1177579},
   url          = {https://doi.org/10.5281/zenodo.1177579}
 }
-
-
-##################################################################################
-# Other found background papers
-
-# Towards autonomous agents for live computer music: Realtime machine listening and interactive music systems
-
-# Interactive music systems: machine listening and composing
-
-# The Jam-O-Drum interactive music system: a study in interaction design
-
-# A NIME Reader: Fifteen Years of New Interfaces for Musical Expression
