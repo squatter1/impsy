@@ -261,10 +261,10 @@ class PredictiveMusicMDRNN(object):
             callbacks=callbacks,
         )
         return history
-
-    def generate(self, prev_sample, lstm_states=None):
+    
+    def generate_gmm(self, prev_sample, lstm_states=None):
         """Generate one forward prediction from a previous sample in format
-        (dt, x_1,...,x_n). Pi and Sigma temperature are adjustable."""
+        (dt, x_1,...,x_n). Returns the GMM parameters instead of a sample."""
         assert (
             len(prev_sample) == self.dimension
         ), "Only works with samples of the same dimension as the network"
@@ -277,13 +277,19 @@ class PredictiveMusicMDRNN(object):
         ] + lstm_states
         # Note that we have confirmed that model.__call__() is way faster than model.predict().
         model_output = self.model(input_list)
-        mdn_params = model_output[0][0].numpy()
-        lstm_states = model_output[1:]  # update storage of LSTM state
-
-        # sample from the MDN:
+        gmm_params = model_output[0][0].numpy()
+        lstm_states = model_output[1:]
+        # update storage of LSTM state
+        if using_self:
+            self.lstm_states = lstm_states
+            return gmm_params
+        return gmm_params, lstm_states
+    
+    def sample_gmm(self, gmm_params):
+        """Sample from the GMM parameters. Pi and Sigma temperature are adjustable."""
         new_sample = (
             mdn.sample_from_output(
-                mdn_params,
+                gmm_params,
                 self.dimension,
                 self.n_mixtures,
                 temp=self.pi_temp,
@@ -294,10 +300,12 @@ class PredictiveMusicMDRNN(object):
         new_sample = new_sample.reshape(
             self.dimension,
         )
-        if using_self:
-            self.lstm_states = lstm_states
-            return new_sample
-        return [new_sample, lstm_states]
+        return new_sample
+    
+    def generate(self, prev_sample):
+        """Generate one forward prediction from a previous sample in format
+        (dt, x_1,...,x_n). Pi and Sigma temperature are adjustable."""
+        return self.sample_gmm(self.generate_gmm(prev_sample))
 
 
 class MDRNNInferenceModel(abc.ABC):
@@ -341,18 +349,37 @@ class MDRNNInferenceModel(abc.ABC):
     def get_lstm_states(self) -> np.ndarray:
         """Get the current LSTM states."""
         return self.lstm_states
-    
 
     @abc.abstractmethod
     def prepare(self) -> None:
         """Prepare for making predictions."""
         pass
 
-
     @abc.abstractmethod
-    def generate(self, prev_value: np.ndarray, lstm_states: np.ndarray) -> np.ndarray:
-        """Handles input values (synchronously) if needed."""
+    def generate_gmm(self, prev_value: np.ndarray, lstm_states=None):
+        """Generate forward prediction in a probabilistic distribution."""
         pass
+
+    def sample_gmm(self, gmm_params: np.ndarray) -> np.ndarray:
+        """Sample from the GMM parameters. Pi and Sigma temperature are adjustable."""
+        new_sample = (
+            mdn.sample_from_output(
+                gmm_params,
+                self.dimension,
+                self.n_mixtures,
+                temp=self.pi_temp,
+                sigma_temp=self.sigma_temp,
+            )
+            / SCALE_FACTOR
+        )
+        new_sample = new_sample.reshape(
+            self.dimension,
+        )
+        return new_sample
+
+    def generate(self, prev_value: np.ndarray) -> np.ndarray:
+        """Handles input values (synchronously) if needed."""
+        return self.sample_gmm(self.generate_gmm(prev_value))
 
 
 class TfliteMDRNN(MDRNNInferenceModel):
@@ -368,15 +395,14 @@ class TfliteMDRNN(MDRNNInferenceModel):
         self.interpreter = tf.lite.Interpreter(model_path=str(self.model_file))
         self.signatures = self.interpreter.get_signature_list()
         self.runner = self.interpreter.get_signature_runner()
-
-
-    def generate(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
-        """makes a prediction. Needs to know the exact state names at the moment."""
+    
+    def generate_gmm(self, prev_value, lstm_states=None):
+        """Generate one forward prediction from a previous sample.
+        Returns the GMM parameters instead of a sample."""
         using_self = False
         if lstm_states is None:
             lstm_states = self.lstm_states
             using_self = True
-        print("TFLITE GENERATE")
         input_value = prev_value.reshape(1,1,self.dimension) * SCALE_FACTOR
         input_value = input_value.astype(np.float32, copy=False)
         ## Create the input dictionary:
@@ -390,26 +416,12 @@ class TfliteMDRNN(MDRNNInferenceModel):
         for i in range(self.n_layers):
             lstm_states[2 * i] = raw_out[f'lstm_{i}'] # h
             lstm_states[2 * i + 1] = raw_out[f'lstm_{i}_1'] # c
-        mdn_params = raw_out['mdn_outputs'].squeeze()
-        # sample from the MDN:
-        new_sample = (
-            mdn.sample_from_output(
-                mdn_params,
-                self.dimension,
-                self.n_mixtures,
-                temp=self.pi_temp,
-                sigma_temp=self.sigma_temp,
-            )
-            / SCALE_FACTOR
-        )
-        new_sample = new_sample.reshape(
-            self.dimension,
-        )
+        gmm_params = raw_out['mdn_outputs'].squeeze()
+        # update storage of LSTM state
         if using_self:
             self.lstm_states = lstm_states
-            return new_sample
-        return [new_sample, lstm_states]
-
+            return gmm_params
+        return gmm_params, lstm_states
 
 class  KerasMDRNN(MDRNNInferenceModel):
     """Loads an MDRNN in inference mode from a .keras file."""
@@ -431,62 +443,42 @@ class  KerasMDRNN(MDRNNInferenceModel):
             # Loading model for .h5 files
             self.model = build_mdrnn_model(self.dimension, self.n_hidden_units, self.n_mixtures, self.n_layers, inference=True, seq_length=1)
             self.model.load_weights(self.model_file)
-
-
-    def generate(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
+    
+    def generate_gmm(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
         """Generate one forward prediction from a previous sample in format
-        (dt, x_1,...,x_n). Pi and Sigma temperature are adjustable."""
+        (dt, x_1,...,x_n). Returns the GMM parameters instead of a sample."""
         assert (
             len(prev_value) == self.dimension
         ), "Only works with samples of the same dimension as the network"
         if lstm_states is None:
             lstm_states = self.lstm_states
             using_self = True
-        # print("Input sample", prev_value)
         input_list = [
             prev_value.reshape(1, 1, self.dimension) * SCALE_FACTOR
         ] + lstm_states
         model_output = self.model(input_list)
         # Note that we have confirmed that model.__call__() is way faster than model.predict().
         # model_output = self.model.predict(input_list)
-        mdn_params = model_output[0][0].numpy()
-        # mdn_params = model_output[0][0]
-        lstm_states = model_output[1:]  # update storage of LSTM state
-
-        # sample from the MDN:
-        new_sample = (
-            mdn.sample_from_output(
-                mdn_params,
-                self.dimension,
-                self.n_mixtures,
-                temp=self.pi_temp,
-                sigma_temp=self.sigma_temp,
-            )
-            / SCALE_FACTOR
-        )
-        new_sample = new_sample.reshape(
-            self.dimension,
-        )
+        gmm_params = model_output[0][0].numpy()
+        lstm_states = model_output[1:]
+        # update storage of LSTM state
         if using_self:
             self.lstm_states = lstm_states
-            return new_sample
-        return [new_sample, lstm_states]
-
+            return gmm_params
+        return gmm_params, lstm_states
 
 class DummyMDRNN(MDRNNInferenceModel):
     """A dummy MDRNN for use if there is no model available (yet or ever). It just generates the same value over and over again."""
 
-
     def __init__(self, file: Path, dimension: int, n_hidden_units: int, n_mixtures: int, n_layers: int) -> None:
         super().__init__(file, dimension, n_hidden_units, n_mixtures, n_layers)
-
 
     def prepare(self) -> None:
         self.output_value = random_sample(out_dim=self.dimension)
 
+    def generate_gmm(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
+        raise NotImplementedError("Dummy model doesn't implement GMM generation.")
 
-    def generate(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
-        if lstm_states is None:
-            return self.output_value
-        return [self.output_value, lstm_states]
+    def generate(self, prev_value: np.ndarray) -> np.ndarray:
+        return self.output_value
     
