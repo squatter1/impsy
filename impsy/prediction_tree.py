@@ -6,6 +6,7 @@ class Node:
         self.output = output
         self.parent = parent
         self.lstm_states = lstm_states
+        self.gmm = None
         self.children = []
 
 class PredictionTree:
@@ -16,7 +17,7 @@ class PredictionTree:
         self.branching_factor = branching_factor
         self.best_branch = (None, None, float('-inf'))
 
-    def build_tree(self, memory: List[np.ndarray], predict_function):
+    def build_tree(self, memory: List[np.ndarray], predict_function, sample_function):
         # Reset best branch
         self.best_branch = (None, None, float('-inf'))
         # Create nodes for the entire memory
@@ -29,24 +30,23 @@ class PredictionTree:
         
         # Start building the tree from the last memory node
         nodes[-1].lstm_states = self.initial_lstm_states
-        self._recursive_build(nodes[-1], 0, memory, predict_function)
+        self._recursive_build(nodes[-1], 0, memory, predict_function, sample_function)
 
-    def _recursive_build(self, node, depth, current_memory, predict_function):
+    def _recursive_build(self, node, depth, current_memory, predict_function, sample_function):
         if depth >= self.max_depth:
             return
         
+        # Create a GMM prediction for the current node, to use as the continuous action space
+        node.gmm, new_lstm = predict_function(current_memory[-1], lstm_states=node.lstm_states)
+        
+        # Create child nodes from GMM samples
         for _ in range(self.branching_factor):
-            last_memory = current_memory[-1]
-            prediction = predict_function(last_memory, lstm_states=node.lstm_states)
-            output = prediction[0]
-            new_lstm = prediction[1]
-            #print("GOT OUTPUT", output)
-            #print("GOT LSTM", new_lstm)
-            child = Node(output, parent=node, lstm_states=new_lstm)
+            sample = sample_function(node.gmm)
+            child = Node(sample, parent=node, lstm_states=new_lstm)
             node.children.append(child)
             
-            new_memory = current_memory[1:] + [output]
-            self._recursive_build(child, depth + 1, new_memory, predict_function)
+            new_memory = current_memory[1:] + [sample]
+            self._recursive_build(child, depth + 1, new_memory, predict_function, sample_function)
 
     def extract_branch(self, node: Node) -> np.ndarray:
         output_branch = []
@@ -75,6 +75,17 @@ class PredictionTree:
         
         dfs(self.root)
         return branches
+    
+    def get_num_nodes(self) -> int:
+        count = 0
+        def dfs(node):
+            nonlocal count
+            count += 1
+            for child in node.children:
+                dfs(child)
+        
+        dfs(self.root)
+        return count
 
 # Predict next from previous output
 def predict_next(output: np.ndarray, lstm_states=None) -> np.ndarray:

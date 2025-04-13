@@ -15,5 +15,3 @@ def four_note_repetition(branch: np.ndarray) -> float: #TODO make this work for 
     std_total += np.std(branch[-4:, 0])
     std_total += np.std(branch[-4:, 1])
     return std_total
-
-

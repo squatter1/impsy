@@ -269,6 +269,8 @@ class InteractionServer(object):
                 self.rnn_output_buffer.put_nowait(rnn_output)
             self.interface_input_queue.task_done()
 
+            # TODO we should create the prediction tree here, store it, and then repeatedly use it in MDRNN -> MDRNN
+
         # Now deal with MDRNN --> MDRNN prediction.
         if (
             self.rnn_to_rnn
@@ -288,13 +290,14 @@ class InteractionServer(object):
                 start_time = time.time()
                 self.rnn_prediction_tree = PredictionTree(
                     max_depth=4,
-                    branching_factor=4,
+                    branching_factor=6,
                     initial_lstm_states=neural_net.get_lstm_states(),
                 )
-                self.rnn_prediction_tree.build_tree(self.rnn_output_memory, neural_net.generate)
+                self.rnn_prediction_tree.build_tree(self.rnn_output_memory, neural_net.generate_gmm, neural_net.sample_gmm)
+                print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 # End timer
                 end_time = time.time()
-                print(f"Time taken: {end_time - start_time}")
+                
     
                 # Print the sampled branches
                 self.rnn_prediction_tree.rank_branches(heuristics.four_note_repetition)
@@ -310,6 +313,7 @@ class InteractionServer(object):
                 rnn_output = best_branch[0][len(self.rnn_output_memory)]
                 neural_net.set_lstm_states(best_branch[1][len(self.rnn_output_memory)])
                 #lstm_states = best_branch[0][len(self.rnn_output_memory)][1]
+                print(f"Time taken: {end_time - start_time}")
             # Store output in output memory.
             self.rnn_output_memory.append(rnn_output)
             if len(self.rnn_output_memory) > self.rnn_output_memory_size:
