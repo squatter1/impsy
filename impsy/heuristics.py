@@ -1,8 +1,19 @@
 import numpy as np
 
+def null_heuristic(branch: np.ndarray) -> float:
+    # Return 0 for all branches
+    return 0.0
+
 def rhythmic_consistency(branch: np.ndarray) -> float:
     # Return the standard deviation of the first elements in each array within this 2d array
     return -np.std(branch[:, 0])
+
+def pitch_consistency(branch: np.ndarray) -> float:
+    # Return the standard deviation of the second elements in each array within this 2d array
+    return -np.std(branch[:, 1])
+
+def overall_consistency(branch: np.ndarray) -> float:
+    return rhythmic_consistency(branch) + pitch_consistency(branch)
 
 def four_note_repetition(branch: np.ndarray) -> float: #TODO make this work for more than 2D
     branches_mod_4 = [branch[np.arange(len(branch)) % 4 == i] for i in range(4)]
