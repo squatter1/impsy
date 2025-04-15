@@ -174,3 +174,6 @@ experiment_data
 
 # python env
 python_311_env_impsy/
+
+# prediction_tree_figs
+prediction_tree_figs/

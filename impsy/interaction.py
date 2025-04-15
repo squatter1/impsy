@@ -12,7 +12,12 @@ import impsy.impsio as impsio
 from pathlib import Path
 
 from impsy.prediction_tree import PredictionTree
+from impsy.mcts_prediction_tree import MCTSPredictionTree
 import impsy.heuristics as heuristics
+
+import numpy as np
+import matplotlib.pyplot as plt
+import os
 
 np.set_printoptions(precision=2)
 
@@ -288,27 +293,85 @@ class InteractionServer(object):
             else:
                 # If we are using a prediction tree, build it
                 start_time = time.time()
-                self.rnn_prediction_tree = PredictionTree(
-                    max_depth=4,
-                    branching_factor=6,
+                #self.rnn_prediction_tree = PredictionTree(
+                #    max_depth=4,
+                #    branching_factor=6,
+                #    initial_lstm_states=neural_net.get_lstm_states(),
+                #)
+                #self.rnn_prediction_tree.build_tree(self.rnn_output_memory, neural_net.generate_gmm, neural_net.sample_gmm)
+
+                # TODO: we need the prediction tree setup to include adding lstm memory, do this in user -> MDRNN?
+                self.rnn_prediction_tree = MCTSPredictionTree(
+                    max_simulation_depth=2, 
+                    branching_factor=5, 
+                    exploration_weight=0.25,
                     initial_lstm_states=neural_net.get_lstm_states(),
                 )
-                self.rnn_prediction_tree.build_tree(self.rnn_output_memory, neural_net.generate_gmm, neural_net.sample_gmm)
+                best_branch = self.rnn_prediction_tree.search(
+                    memory=self.rnn_output_memory, 
+                    predict_function=neural_net.generate_gmm, 
+                    sample_function=neural_net.sample_gmm,
+                    heuristic_function=heuristics.rhythmic_consistency,
+                    time_limit_ms=1000
+                )
+                # Print the best branch
+                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization")
+                # Folder to save figures
+                folder = 'prediction_tree_figs'
+                os.makedirs(folder, exist_ok=True)
+                
+                # Find the next available integer filename
+                existing_files = os.listdir(folder)
+                existing_numbers = [int(f.split('.')[0]) for f in existing_files if f.split('.')[0].isdigit()]
+                next_number = max(existing_numbers) + 1 if existing_numbers else 1
+                
+                # Save the plot
+                filename = f"{next_number}.png"
+                filepath = os.path.join(folder, filename)
+                plt.savefig(filepath)
+
+                # NULL HEURISTIC PLOT
+                self.rnn_prediction_tree = MCTSPredictionTree(
+                    max_simulation_depth=2, 
+                    branching_factor=4, 
+                    exploration_weight=0.25,
+                    initial_lstm_states=neural_net.get_lstm_states(),
+                )
+                best_branch = self.rnn_prediction_tree.search(
+                    memory=self.rnn_output_memory, 
+                    predict_function=neural_net.generate_gmm, 
+                    sample_function=neural_net.sample_gmm,
+                    heuristic_function=heuristics.null_heuristic,
+                    time_limit_ms=1000
+                )
+                # Print the best branch
+                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization")
+                
+                # Save the plot
+                filename = f"{next_number}null.png"
+                filepath = os.path.join(folder, filename)
+                plt.savefig(filepath)
+                
+                # Close the plot if you're done
+                plt.close()
+                # Wait for 100s
+                time.sleep(10)
+
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 # End timer
                 end_time = time.time()
                 
     
-                # Print the sampled branches
-                self.rnn_prediction_tree.rank_branches(heuristics.four_note_repetition)
-                #for i, (branch, heuristic_value) in enumerate(sampled_branches):
-                #    print(f"Branch {i + 1} Heuristic Value: {heuristic_value:.4f}):")
-                #    print(branch)
-                #    print(f"Branch length: {len(branch)}")
-                #    print()
-                # Get the branch with the highest heuristic value
-                best_branch = self.rnn_prediction_tree.best_branch
-                #print("Best Branch:", best_branch)
+                ## Print the sampled branches
+                #self.rnn_prediction_tree.rank_branches(heuristics.four_note_repetition)
+                ##for i, (branch, heuristic_value) in enumerate(sampled_branches):
+                ##    print(f"Branch {i + 1} Heuristic Value: {heuristic_value:.4f}):")
+                ##    print(branch)
+                ##    print(f"Branch length: {len(branch)}")
+                ##    print()
+                ## Get the branch with the highest heuristic value
+                #best_branch = self.rnn_prediction_tree.best_branch
+                ##print("Best Branch:", best_branch)
                 # Get the item from memory length + 1 from the best branch
                 rnn_output = best_branch[0][len(self.rnn_output_memory)]
                 neural_net.set_lstm_states(best_branch[1][len(self.rnn_output_memory)])
