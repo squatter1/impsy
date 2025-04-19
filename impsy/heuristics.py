@@ -8,6 +8,14 @@ def rhythmic_consistency(branch: np.ndarray) -> float:
     # Return the standard deviation of the first elements in each array within this 2d array
     return -np.std(branch[:, 0])
 
+def rhythmic_range(branch: np.ndarray) -> float:
+    # Return the difference between the min and max of the first elements in each array within this 2d array, + 0.01 * length
+    return (np.min(branch[:, 0]) - np.max(branch[:, 0])) + 0.01 * len(branch)
+
+def rhythmic_consistency_to_value(branch: np.ndarray, value=0.25) -> float:
+    # Return the average deviation of the first elements in each array within this 2d array from the value
+    return -np.mean(np.abs(branch[:, 0] - value))
+
 def pitch_consistency(branch: np.ndarray) -> float:
     # Return the standard deviation of the second elements in each array within this 2d array
     return -np.std(branch[:, 1])
