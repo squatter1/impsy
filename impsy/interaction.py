@@ -293,27 +293,27 @@ class InteractionServer(object):
             else:
                 # If we are using a prediction tree, build it
                 start_time = time.time()
-                #self.rnn_prediction_tree = PredictionTree(
-                #    max_depth=4,
-                #    branching_factor=6,
-                #    initial_lstm_states=neural_net.get_lstm_states(),
-                #)
-                #self.rnn_prediction_tree.build_tree(self.rnn_output_memory, neural_net.generate_gmm, neural_net.sample_gmm)
 
                 # TODO: we need the prediction tree setup to include adding lstm memory, do this in user -> MDRNN?
                 self.rnn_prediction_tree = MCTSPredictionTree(
-                    max_simulation_depth=2, 
-                    branching_factor=5, 
+                    max_simulation_depth=10, 
                     exploration_weight=0.25,
                     initial_lstm_states=neural_net.get_lstm_states(),
                 )
+                print("ITEM:", item)
                 best_branch = self.rnn_prediction_tree.search(
                     memory=self.rnn_output_memory, 
                     predict_function=neural_net.generate_gmm, 
                     sample_function=neural_net.sample_gmm,
-                    heuristic_function=heuristics.rhythmic_consistency,
+                    heuristic_function=lambda x: heuristics.rhythmic_consistency_to_value(x, item[0]),
                     time_limit_ms=1000
                 )
+                print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
+                print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
+                ############################
+                # FOR PREDICTION TREE FIGS #
+                ############################
+
                 # Print the best branch
                 fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization")
                 # Folder to save figures
@@ -332,8 +332,7 @@ class InteractionServer(object):
 
                 # NULL HEURISTIC PLOT
                 self.rnn_prediction_tree = MCTSPredictionTree(
-                    max_simulation_depth=2, 
-                    branching_factor=4, 
+                    max_simulation_depth=10, 
                     exploration_weight=0.25,
                     initial_lstm_states=neural_net.get_lstm_states(),
                 )
@@ -344,6 +343,8 @@ class InteractionServer(object):
                     heuristic_function=heuristics.null_heuristic,
                     time_limit_ms=1000
                 )
+                print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
+                print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
                 # Print the best branch
                 fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization")
                 
@@ -357,25 +358,16 @@ class InteractionServer(object):
                 # Wait for 100s
                 time.sleep(10)
 
+
+                
+
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
+                print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
                 # End timer
                 end_time = time.time()
-                
-    
-                ## Print the sampled branches
-                #self.rnn_prediction_tree.rank_branches(heuristics.four_note_repetition)
-                ##for i, (branch, heuristic_value) in enumerate(sampled_branches):
-                ##    print(f"Branch {i + 1} Heuristic Value: {heuristic_value:.4f}):")
-                ##    print(branch)
-                ##    print(f"Branch length: {len(branch)}")
-                ##    print()
-                ## Get the branch with the highest heuristic value
-                #best_branch = self.rnn_prediction_tree.best_branch
-                ##print("Best Branch:", best_branch)
-                # Get the item from memory length + 1 from the best branch
+
                 rnn_output = best_branch[0][len(self.rnn_output_memory)]
                 neural_net.set_lstm_states(best_branch[1][len(self.rnn_output_memory)])
-                #lstm_states = best_branch[0][len(self.rnn_output_memory)][1]
                 print(f"Time taken: {end_time - start_time}")
             # Store output in output memory.
             self.rnn_output_memory.append(rnn_output)
