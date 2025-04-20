@@ -297,7 +297,7 @@ class InteractionServer(object):
                 # TODO: we need the prediction tree setup to include adding lstm memory, do this in user -> MDRNN?
                 self.rnn_prediction_tree = MCTSPredictionTree(
                     max_simulation_depth=10, 
-                    exploration_weight=0.25,
+                    exploration_weight=0.05,
                     initial_lstm_states=neural_net.get_lstm_states(),
                 )
                 print("ITEM:", item)
@@ -329,11 +329,12 @@ class InteractionServer(object):
                 filename = f"{next_number}.png"
                 filepath = os.path.join(folder, filename)
                 plt.savefig(filepath)
+                plt.show()
 
                 # NULL HEURISTIC PLOT
                 self.rnn_prediction_tree = MCTSPredictionTree(
                     max_simulation_depth=10, 
-                    exploration_weight=0.25,
+                    exploration_weight=0.05,
                     initial_lstm_states=neural_net.get_lstm_states(),
                 )
                 best_branch = self.rnn_prediction_tree.search(
@@ -352,6 +353,7 @@ class InteractionServer(object):
                 filename = f"{next_number}null.png"
                 filepath = os.path.join(folder, filename)
                 plt.savefig(filepath)
+                plt.show()
                 
                 # Close the plot if you're done
                 plt.close()

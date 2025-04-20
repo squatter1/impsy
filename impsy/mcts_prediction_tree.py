@@ -370,8 +370,8 @@ class MCTSPredictionTree:
             fig = ax.figure
         
         # Set labels and title
-        ax.set_xlabel('Time')
-        ax.set_ylabel('Pitch')
+        ax.set_xlabel('Time Interval (ms)')
+        ax.set_ylabel('Pitch (Hz)')
         ax.set_zlabel('Tree Depth')
         ax.set_title(title)
         
@@ -402,7 +402,10 @@ class MCTSPredictionTree:
             if node.output is None or len(node.output) < 2:
                 x, y = 0, 0  # Default values if output doesn't have enough elements
             else:
-                x, y = node.output[0], node.output[1]
+                # Convert output[1] (note) to frequency in Hz
+                # Assuming output[1] is in semitones, convert to Hz using A4 = 440 Hz, A4 = 54, 10 notes = 1 octave, eg A5 = 64
+                hz = 440 * math.pow(2, (node.output[1]*100 - 54) / 10)
+                x, y = node.output[0] * 1000, hz
             
             # Position in 3D space
             pos = (x, y, depth)
@@ -413,21 +416,26 @@ class MCTSPredictionTree:
             # Plot node
             if node.visits > 0:  # Only plot nodes that have been visited
                 # Normalize size (min size 20, max size 200)
-                node_size = 20 + 20 * math.pow(node.visits, 0.4)
+                node_size = -80 + 65 * math.pow(node.visits + 2, 0.25)
                 
                 # Color based on whether it's part of the winning branch
                 node_color = 'yellow' if is_winning else 'skyblue'
                 
                 # Plot the node
-                ax.scatter(x, y, depth, s=node_size, c=node_color, edgecolor='black', alpha=0.7)
+                if is_winning:
+                    # Highlight winning nodes by putting them in front of all others
+                    ax.scatter(x, y, depth, s=node_size, c=node_color, edgecolor='black', alpha=1)
+                else:
+                    # Regular node
+                    ax.scatter(x, y, depth, s=node_size, c=node_color, edgecolor='black', alpha=0.35)
                 
                 # Add text annotation with visits count
-                ax.text(x, y, depth, f"{node.visits}", fontsize=8)
+                #ax.text(x, y, depth, f"{node.visits}", fontsize=8)
                 
                 # Draw edge to parent
                 if parent_pos is not None:
                     # Normalize edge width
-                    edge_width = 1 + math.pow(node.visits, 0.3)
+                    edge_width = -8 + 6.5 * math.pow(node.visits + 2, 0.25)
                     
                     # Line coordinates
                     xs = [parent_pos[0], x]
@@ -438,7 +446,12 @@ class MCTSPredictionTree:
                     edge_color = 'gold' if is_winning else 'gray'
                     
                     # Plot edge
-                    ax.plot(xs, ys, zs, linewidth=edge_width, color=edge_color, alpha=0.6)
+                    if is_winning:
+                        # Highlight winning path by putting it in front of all others
+                        ax.plot(xs, ys, zs, linewidth=edge_width, color=edge_color, alpha=1)
+                    else:
+                        # Regular edge
+                        ax.plot(xs, ys, zs, linewidth=edge_width, color=edge_color, alpha=0.15)
             
             # Recursively plot children
             for child in node.children:
@@ -449,13 +462,12 @@ class MCTSPredictionTree:
         
         # Add legend
         from matplotlib.lines import Line2D
-        from matplotlib.patches import Circle
         
         legend_elements = [
-            Circle((0, 0), 0.1, facecolor='skyblue', edgecolor='black', label='Regular Node'),
-            Circle((0, 0), 0.1, facecolor='yellow', edgecolor='black', label='Winning Branch'),
-            Line2D([0], [0], color='gray', lw=2, label='Regular Edge'),
-            Line2D([0], [0], color='gold', lw=2, label='Winning Path')
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='yellow', markeredgecolor='black', label='Chosen Node', markersize=10),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='skyblue', markeredgecolor='black', label='Explored Node', markersize=10),
+            Line2D([0], [0], color='gold', lw=2, label='Chosen Path'),
+            Line2D([0], [0], color='gray', lw=2, label='Explored Path')
         ]
         
         ax.legend(handles=legend_elements, loc='upper right')
@@ -464,7 +476,7 @@ class MCTSPredictionTree:
         ax.grid(True)
         
         # Auto-adjust view
-        ax.view_init(elev=30, azim=30)
+        ax.view_init(elev=8, azim=78)
 
         # Adjust Z axis ticks and direction
         z_min, z_max = ax.get_zlim()
