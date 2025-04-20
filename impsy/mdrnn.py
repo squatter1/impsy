@@ -16,7 +16,7 @@ import click
 NET_MODE_TRAIN = "train"
 NET_MODE_RUN = "run"
 LOG_PATH = "./logs/"
-SCALE_FACTOR = 10  # scales input and output from the model. Should be the same between training and inference.
+SCALE_FACTOR = 12  # scales input and output from the model. Should be the same between training and inference.
 
 
 def random_sample(out_dim=2):
