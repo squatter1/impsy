@@ -13,7 +13,7 @@ verbose = true
 # Interaction Configuration
 [interaction]
 mode = "callresponse" # Can be: "callresponse", "polyphony", "battle", "useronly"
-threshold = 100.1 # number of seconds before switching in call-response mode
+threshold = 1.1 # number of seconds before switching in call-response mode
 input_thru = false # sends inputs directly to outputs (e.g., if input interface is different than output synth)
 
 # Model configuration

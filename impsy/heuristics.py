@@ -14,6 +14,10 @@ def rhythmic_range(branch: np.ndarray) -> float:
 
 def rhythmic_consistency_to_value(branch: np.ndarray, value=0.25) -> float:
     # Return the average deviation of the first elements in each array within this 2d array from the value
+    print("Running heuristic")
+    print("Intervals:", branch[:, 0])
+    print("Value:", value)
+    print("Heuristic value:", -np.mean(np.abs(branch[:, 0] - value)))
     return -np.mean(np.abs(branch[:, 0] - value))
 
 def pitch_consistency(branch: np.ndarray) -> float:
