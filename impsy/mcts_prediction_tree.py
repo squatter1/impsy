@@ -14,20 +14,15 @@ class MCTSNode:
         # MCTS specific attributes
         self.visits = 0
         self.value = 0.0
-        self.untried_actions = []  # Will be populated with samples from GMM
         self.failed_progressive_widening = 0  # Count of failed progressive widening attempts, too many leads to assumption all valid unique children have been added
         
-    def add_child(self, output: np.ndarray, lstm_states) -> 'MCTSNode':
+    def add_child(self, output: np.ndarray) -> 'MCTSNode':
         """Add a child node with the given output and return it"""
-        child = MCTSNode(output, parent=self, lstm_states=lstm_states)
+        child = MCTSNode(output, parent=self)
         self.children.append(child)
         return child
     
-    def is_fully_expanded(self) -> bool:
-        """Check if all possible actions have been tried"""
-        return len(self.untried_actions) == 0
-    
-    def best_child(self, exploration_weight: float) -> 'MCTSNode':
+    def best_child(self, exploration_weight: float) -> Optional['MCTSNode']:
         """
         Select the best child according to UCT formula:
         UCT = value/visits + exploration_weight * sqrt(2 * ln(parent_visits) / visits)
@@ -43,25 +38,33 @@ class MCTSNode:
             # Exploration term
             exploration = exploration_weight * math.sqrt(2 * math.log(self.visits) / child.visits) if child.visits > 0 else float('inf')
             
+            print(f"Child output: {child.output}, Exploitation: {exploitation}, Exploration: {exploration}")
             uct_values.append(exploitation + exploration)
         
+        print("FINAL UCT SELECTION: ", self.children[np.argmax(uct_values)].output)
         return self.children[np.argmax(uct_values)]
+    
+    def most_visited_child(self) -> Optional['MCTSNode']:
+        """Return the child with the most visits"""
+        if not self.children:
+            return None
+        return max(self.children, key=lambda child: child.visits)   
 
 
 class MCTSPredictionTree:
     def __init__(self, 
-                 max_simulation_depth: int = 2, 
+                 initial_lstm_states: np.ndarray,
+                 simulation_depth: int = 2, 
                  exploration_weight: float = 1.0,
                  progressive_widening_k: float = 1.0,
                  progressive_widening_alpha: float = 0.5,
                  starting_originality_distances: np.ndarray = np.array([0.12, 0.01]),
                  min_originality_distances: np.ndarray = np.array([0.03, 0.005]),
                  snap_to_semitones: bool = True,
-                 max_samples_for_originality: int = 10,
-                 initial_lstm_states=None):
+                 max_samples_for_originality: int = 10):
         self.root = None
         self.initial_lstm_states = initial_lstm_states
-        self.max_simulation_depth = max_simulation_depth
+        self.simulation_depth = simulation_depth
         self.exploration_weight = exploration_weight
         self.progressive_widening_k = progressive_widening_k
         self.progressive_widening_alpha = progressive_widening_alpha
@@ -69,10 +72,6 @@ class MCTSPredictionTree:
         self.min_originality_distances = min_originality_distances
         self.snap_to_semitones = snap_to_semitones
         self.max_samples_for_originality = max_samples_for_originality
-        self.best_branch = (None, None, float('-inf'))
-        self.nodes_searched = 0
-        self.branches_simulated = 0
-
         
         self.heuristic_function = None  # TODO delete
     
@@ -98,7 +97,7 @@ class MCTSPredictionTree:
         self.heuristic_function = heuristic_function # TODO delete
         # Reset statistics
         self.nodes_searched = 0
-        self.best_branch = (None, None, float('-inf'))
+        self.branches_simulated = 0
         
         # Create nodes for the entire memory
         nodes = [MCTSNode(output) for output in memory]
@@ -109,14 +108,10 @@ class MCTSPredictionTree:
         self.root = nodes[0]
         
         # Set up the initial state
-        current_node = nodes[-1]
+        initial_node = nodes[-1]
         
-        # Get initial GMM for root - only call predict_function once
-        current_node.gmm, current_node.lstm_states = predict_function(memory[-1], lstm_states=self.initial_lstm_states)
-        
-        # For progressive widening, we don't immediately populate all untried actions
-        # Instead, we sample one action to start with
-        current_node.untried_actions = [sample_function(current_node.gmm)]
+        # Get the GMM for the root
+        initial_node.gmm, initial_node.lstm_states = predict_function(initial_node.output, init_lstm_states=self.initial_lstm_states)
         
         # Set up time limit
         end_time = time.time() + (time_limit_ms / 1000.0)
@@ -124,24 +119,27 @@ class MCTSPredictionTree:
         # MCTS main loop
         while time.time() < end_time:
             # Selection and Expansion
-            selected_node, new_memory = self._select_and_expand(current_node, memory[1:], predict_function, sample_function)
+            print("Selecting and Expanding")
+            selected_node = self._select_and_expand(initial_node, sample_function)
+            print(f"Selected node: {selected_node.output}")
             
             # Simulation
-            simulation_result = self._simulate(selected_node, new_memory, predict_function, sample_function, heuristic_function)
+            print("Simulating")
+            simulation_result = self._simulate(selected_node, predict_function, sample_function, heuristic_function)
+            print(f"Simulation result: {simulation_result}")
             
             # Backpropagation
+            print("Backpropagating")
             self._backpropagate(selected_node, simulation_result)
 
             self.branches_simulated += 1
         
-        # Return best branch after time is up
-        best_child = self._get_best_child(current_node)
-        if best_child:
-            branch, lstm_branch = self._extract_branch(best_child)
-            branch_score = heuristic_function(branch)
-            self.best_branch = (branch, lstm_branch, branch_score)
-        
-        return self.best_branch
+        # Return best child after time is up, argmax over visits
+        # best child = argmax of initial_node.children visits
+        best_child = initial_node.most_visited_child()
+        print("Initial node:", initial_node.output)
+        print("Best child:", best_child.output)
+        return (best_child.output, initial_node.lstm_states)
 
     def _check_progressive_widening(self, node: MCTSNode, sample_function: Callable) -> None:
         """
@@ -157,14 +155,16 @@ class MCTSPredictionTree:
         max_actions = max(1, int(self.progressive_widening_k * (node.visits ** self.progressive_widening_alpha)))
         
         # If we already have enough children, don't add more
-        current_actions = len(node.untried_actions) + len(node.children)
+        current_actions = len(node.children)
         if current_actions >= max_actions:
             return
+        
+        print("Progressive widening:")
+        print(f"Current actions: {current_actions}, Max actions: {max_actions}")
             
         # We need to add more actions
         # Get all existing actions to check for originality
         existing_actions = [child.output for child in node.children]
-        existing_actions.extend(node.untried_actions)
         
         # Add a new action with originality constraint
         num_samples = 0
@@ -201,19 +201,20 @@ class MCTSPredictionTree:
             
             # If original, add it; otherwise, try again with a relaxed constraint
             if is_original:
-                node.untried_actions.append(new_action)
+                node.add_child(new_action)
                 existing_actions.append(new_action)
                 current_actions += 1
                 num_samples = 0  # Reset counter for next action
+                print(f"Added action: {new_action}, Current actions: {current_actions}")
             else:
                 num_samples += 1
                 # If we've tried too many times, break and don't add any action, as it may be too crowded
                 if num_samples >= self.max_samples_for_originality:
                     node.failed_progressive_widening += 1
+                    print(f"Failed progressive widening: {node.failed_progressive_widening}")
                     break
     
-    def _select_and_expand(self, node: MCTSNode, memory: List[np.ndarray], 
-                           predict_function: Callable, sample_function: Callable) -> Tuple[MCTSNode, List[np.ndarray]]:
+    def _select_and_expand(self, node: MCTSNode, sample_function: Callable) -> Tuple[MCTSNode, List[np.ndarray]]:
         """
         Select a node to expand using UCT and expand it
         Apply progressive widening to dynamically increase available actions
@@ -221,76 +222,60 @@ class MCTSPredictionTree:
         """
         self.nodes_searched += 1
         current = node
-        current_memory = memory.copy()
         
         # Selection phase - navigate down the tree with progressive widening at each node
+        print("Selection phase")
         while current.children:  # As long as we have children to explore
             # Check progressive widening condition
             self._check_progressive_widening(current, sample_function)
-            
-            # If there are untried actions, we should try one
-            if not current.is_fully_expanded():
-                break
                 
             # Otherwise, select best child according to UCT
+            print("Selecting best child with UCT")
             current = current.best_child(self.exploration_weight)
-            current_memory = current_memory[1:] + [current.output]
+            print(f"Selected child: {current.output}")
             self.nodes_searched += 1
             
-        # Expansion phase
-        # First check progressive widening to potentially add new actions
+        # Expansion phase, this is simply another progressive widening check to add a child since the current node will have no children
+        print("Expansion phase")
         self._check_progressive_widening(current, sample_function)
+        if current.children:
+            # If child added by progressive widening, select one
+            current = current.children[0]
         
-        # If we have untried actions, expand one
-        if not current.is_fully_expanded():
-            action = current.untried_actions.pop(0)
-            
-            # Create new child with parent's lstm_states (will be updated during simulation)
-            new_node = current.add_child(action, current.lstm_states)
-            
-            # Update memory with the new action
-            current_memory = current_memory[1:] + [action]
-            
-            # During the simulation step, we'll update the GMM and lstm_states for this node
-            return new_node, current_memory
-        
-        return current, current_memory
+        return current
     
-    def _simulate(self, node: MCTSNode, memory: List[np.ndarray], 
-                 predict_function: Callable, sample_function: Callable, 
-                 heuristic_function: Callable) -> float:
+    def _simulate(self, selected_node: MCTSNode, predict_function: Callable, sample_function: Callable, heuristic_function: Callable) -> float:
         """
         Run a simulation from the given node to estimate its value
         """
-        current = node
-        current_memory = memory.copy()
         depth = 0
+
+        print("Simulation from branch: ", self._extract_branch(selected_node))
         
-        # Important: Get the GMM and lstm_states for the current node if not already computed
-        # This avoids the duplicate predict_function call in the expansion phase
-        if current.gmm is None:
-            current.gmm, current.lstm_states = predict_function(current_memory[-1], lstm_states=current.parent.lstm_states)
-        
-        lstm_states = current.lstm_states
+        # Get the GMM and lstm_states for the current node if not already computed
+        if selected_node.gmm is None:  
+            selected_node.gmm, selected_node.lstm_states = predict_function(selected_node.output, init_lstm_states=selected_node.parent.lstm_states)
         
         # Continue simulation until we reach max depth
+        current_gmm = selected_node.gmm
+        current_lstm_states = selected_node.lstm_states
         simulation_outputs = []
-        while depth < self.max_simulation_depth:
-            # Predict next node - single call to get both GMM and next LSTM state
-            gmm, lstm_states = predict_function(current_memory[-1], lstm_states=lstm_states)
-            action = sample_function(gmm)
-            
-            # Update memory
-            current_memory = current_memory[1:] + [action]
+        while depth < self.simulation_depth:
+            # Sample next node
+            action = sample_function(current_gmm)
             simulation_outputs.append(action)
             depth += 1
+
+            # If max depth not reached, predict next GMM and lstm states
+            if depth < self.simulation_depth:
+                current_gmm, current_lstm_states = predict_function(action, init_lstm_states=current_lstm_states)
         
-        # Evaluate the final state using heuristic function
-        full_branch = self._extract_branch(node)[0]  # Get the full path
-        if simulation_outputs:
-            full_branch = np.concatenate([full_branch, np.array(simulation_outputs)])  # Add simulation path
-        
-        return heuristic_function(full_branch)
+        # Concatenate the simulated outputs with the original branch
+        simulated_branch = np.concatenate([self._extract_branch(selected_node), np.array(simulation_outputs)])
+        print("Simulated branch: ", simulated_branch)
+
+        # Evaluate the simulated branch using the heuristic function
+        return heuristic_function(simulated_branch)
     
     def _backpropagate(self, node: MCTSNode, result: float) -> None:
         """Update node statistics going up the tree"""
@@ -298,32 +283,17 @@ class MCTSPredictionTree:
         while current:
             current.visits += 1
             current.value += result
+            print(f"Backpropagating: {current.output}, Visits: {current.visits}, Value: {current.value}, Average: {current.value / current.visits}")
             current = current.parent
     
     def _extract_branch(self, node: MCTSNode) -> Tuple[np.ndarray, List]:
         """Extract the complete branch from root to the given node"""
         output_branch = []
-        lstm_states_branch = []
         current = node
-        
         while current:
             output_branch.append(current.output)
-            lstm_states_branch.append(current.lstm_states)
             current = current.parent
-        
-        return np.array(output_branch[::-1]), lstm_states_branch[::-1]
-    
-    def _get_best_child(self, node: MCTSNode, printout=False) -> Optional[MCTSNode]:
-        """Get the child with the highest visit count (most robust choice)"""
-        if not node.children:
-            return None
-        
-        visit_counts = [child.visits for child in node.children]
-        if printout:
-            print(f"All child outputs: {[child.output for child in node.children]}")
-            print(f"Visit counts: {visit_counts}")
-            print(f"Best child: {node.children[np.argmax(visit_counts)].output}")
-        return node.children[np.argmax(visit_counts)]
+        return np.array(output_branch[::-1])
     
     def get_num_nodes(self) -> int:
         """Return the total number of nodes searched during the MCTS process"""
@@ -335,16 +305,16 @@ class MCTSPredictionTree:
     
     def get_best_branch(self) -> np.ndarray:
         """
-        Return the entire branch with the highest heuristic value found during the search.
+        Return the entire branch with the most visits during the search.
         """
         # Start at root node
         current = self.root
         # Recursively find the child with the highest visit count
         while current.children:
-            current = self._get_best_child(current, True)
+            current = current.most_visited_child()
 
         # Extract the branch from the best child node
-        branch, _ = self._extract_branch(current)
+        branch = self._extract_branch(current)
         return branch
     
     def graph_tree(self, ax=None, title="Monte Carlo Tree Search Visualization"):

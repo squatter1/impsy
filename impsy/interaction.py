@@ -276,6 +276,8 @@ class InteractionServer(object):
 
             # TODO we should create the prediction tree here, store it, and then repeatedly use it in MDRNN -> MDRNN
 
+            # TODO: also ensure we're adding to rnn_output_memory here.
+
         # Now deal with MDRNN --> MDRNN prediction.
         if (
             self.rnn_to_rnn
@@ -293,23 +295,24 @@ class InteractionServer(object):
             else:
                 # If we are using a prediction tree, build it
                 start_time = time.time()
-
                 # TODO: we need the prediction tree setup to include adding lstm memory, do this in user -> MDRNN?
                 self.rnn_prediction_tree = MCTSPredictionTree(
-                    max_simulation_depth=10, 
-                    exploration_weight=0.05,
                     initial_lstm_states=neural_net.get_lstm_states(),
+                    simulation_depth=4, 
+                    exploration_weight=0.05,
                 )
                 print("ITEM:", item)
-                best_branch = self.rnn_prediction_tree.search(
-                    memory=self.rnn_output_memory, 
+                print("Searching with memory:", self.rnn_output_memory)
+                best_output = self.rnn_prediction_tree.search(
+                    memory=self.rnn_output_memory,
                     predict_function=neural_net.generate_gmm, 
                     sample_function=neural_net.sample_gmm,
                     heuristic_function=lambda x: heuristics.rhythmic_consistency_to_value(x, item[0]),
-                    time_limit_ms=1000
+                    time_limit_ms=150
                 )
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
+                rnn_output = neural_net.generate(item)
                 ############################
                 # FOR PREDICTION TREE FIGS #
                 ############################
@@ -333,16 +336,16 @@ class InteractionServer(object):
 
                 # NULL HEURISTIC PLOT
                 self.rnn_prediction_tree = MCTSPredictionTree(
-                    max_simulation_depth=10, 
-                    exploration_weight=0.05,
                     initial_lstm_states=neural_net.get_lstm_states(),
+                    simulation_depth=4, 
+                    exploration_weight=0.05,
                 )
-                best_branch = self.rnn_prediction_tree.search(
+                best_output = self.rnn_prediction_tree.search(
                     memory=self.rnn_output_memory, 
                     predict_function=neural_net.generate_gmm, 
                     sample_function=neural_net.sample_gmm,
                     heuristic_function=heuristics.null_heuristic,
-                    time_limit_ms=1000
+                    time_limit_ms=150
                 )
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
@@ -368,8 +371,8 @@ class InteractionServer(object):
                 # End timer
                 end_time = time.time()
 
-                rnn_output = best_branch[0][len(self.rnn_output_memory)]
-                neural_net.set_lstm_states(best_branch[1][len(self.rnn_output_memory)])
+                rnn_output = best_output[0]
+                neural_net.set_lstm_states(best_output[1])
                 print(f"Time taken: {end_time - start_time}")
             # Store output in output memory.
             self.rnn_output_memory.append(rnn_output)

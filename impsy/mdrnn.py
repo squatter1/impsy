@@ -262,16 +262,18 @@ class PredictiveMusicMDRNN(object):
         )
         return history
     
-    def generate_gmm(self, prev_sample, lstm_states=None):
+    def generate_gmm(self, prev_sample, init_lstm_states=None):
         """Generate one forward prediction from a previous sample in format
         (dt, x_1,...,x_n). Returns the GMM parameters instead of a sample."""
         assert (
             len(prev_sample) == self.dimension
         ), "Only works with samples of the same dimension as the network"
-        using_self = False
-        if lstm_states is None:
+        if init_lstm_states is None:
             lstm_states = self.lstm_states
             using_self = True
+        else:
+            lstm_states = init_lstm_states.copy()
+            using_self = False
         input_list = [
             prev_sample.reshape(1, 1, self.dimension) * SCALE_FACTOR
         ] + lstm_states
@@ -356,7 +358,7 @@ class MDRNNInferenceModel(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def generate_gmm(self, prev_value: np.ndarray, lstm_states=None):
+    def generate_gmm(self, prev_value: np.ndarray, init_lstm_states=None):
         """Generate forward prediction in a probabilistic distribution."""
         pass
 
@@ -396,13 +398,15 @@ class TfliteMDRNN(MDRNNInferenceModel):
         self.signatures = self.interpreter.get_signature_list()
         self.runner = self.interpreter.get_signature_runner()
     
-    def generate_gmm(self, prev_value, lstm_states=None):
+    def generate_gmm(self, prev_value, init_lstm_states=None):
         """Generate one forward prediction from a previous sample.
         Returns the GMM parameters instead of a sample."""
-        using_self = False
-        if lstm_states is None:
+        if init_lstm_states is None:
             lstm_states = self.lstm_states
             using_self = True
+        else:
+            lstm_states = init_lstm_states.copy()
+            using_self = False
         input_value = prev_value.reshape(1,1,self.dimension) * SCALE_FACTOR
         input_value = input_value.astype(np.float32, copy=False)
         ## Create the input dictionary:
@@ -444,15 +448,18 @@ class  KerasMDRNN(MDRNNInferenceModel):
             self.model = build_mdrnn_model(self.dimension, self.n_hidden_units, self.n_mixtures, self.n_layers, inference=True, seq_length=1)
             self.model.load_weights(self.model_file)
     
-    def generate_gmm(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
+    def generate_gmm(self, prev_value: np.ndarray, init_lstm_states=None) -> np.ndarray:
         """Generate one forward prediction from a previous sample in format
         (dt, x_1,...,x_n). Returns the GMM parameters instead of a sample."""
         assert (
             len(prev_value) == self.dimension
         ), "Only works with samples of the same dimension as the network"
-        if lstm_states is None:
+        if init_lstm_states is None:
             lstm_states = self.lstm_states
             using_self = True
+        else:
+            lstm_states = init_lstm_states.copy()
+            using_self = False
         input_list = [
             prev_value.reshape(1, 1, self.dimension) * SCALE_FACTOR
         ] + lstm_states
@@ -476,7 +483,7 @@ class DummyMDRNN(MDRNNInferenceModel):
     def prepare(self) -> None:
         self.output_value = random_sample(out_dim=self.dimension)
 
-    def generate_gmm(self, prev_value: np.ndarray, lstm_states=None) -> np.ndarray:
+    def generate_gmm(self, prev_value: np.ndarray, init_lstm_states=None) -> np.ndarray:
         raise NotImplementedError("Dummy model doesn't implement GMM generation.")
 
     def generate(self, prev_value: np.ndarray) -> np.ndarray:
