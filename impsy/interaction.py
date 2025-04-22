@@ -11,7 +11,6 @@ from .utils import mdrnn_config, get_config_data, print_io
 import impsy.impsio as impsio
 from pathlib import Path
 
-from impsy.prediction_tree import PredictionTree
 from impsy.mcts_prediction_tree import MCTSPredictionTree
 import impsy.heuristics as heuristics
 
@@ -299,7 +298,7 @@ class InteractionServer(object):
                 self.rnn_prediction_tree = MCTSPredictionTree(
                     initial_lstm_states=neural_net.get_lstm_states(),
                     simulation_depth=4, 
-                    exploration_weight=0.05,
+                    exploration_weight=0.1,
                 )
                 print("ITEM:", item)
                 print("Searching with memory:", self.rnn_output_memory)
@@ -308,7 +307,7 @@ class InteractionServer(object):
                     predict_function=neural_net.generate_gmm, 
                     sample_function=neural_net.sample_gmm,
                     heuristic_function=lambda x: heuristics.rhythmic_consistency_to_value(x, item[0], False),
-                    time_limit_ms=1000
+                    time_limit_ms=100
                 )
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
@@ -338,14 +337,14 @@ class InteractionServer(object):
                 self.rnn_prediction_tree = MCTSPredictionTree(
                     initial_lstm_states=neural_net.get_lstm_states(),
                     simulation_depth=4, 
-                    exploration_weight=0.05,
+                    exploration_weight=0.1,
                 )
                 best_output = self.rnn_prediction_tree.search(
                     memory=self.rnn_output_memory, 
                     predict_function=neural_net.generate_gmm, 
                     sample_function=neural_net.sample_gmm,
                     heuristic_function=heuristics.null_heuristic,
-                    time_limit_ms=1000
+                    time_limit_ms=100
                 )
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())

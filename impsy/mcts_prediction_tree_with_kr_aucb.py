@@ -50,7 +50,19 @@ class MCTSNode:
         """Return the child with the most visits"""
         if not self.children:
             return None
-        return max(self.children, key=lambda child: child.visits)   
+        return max(self.children, key=lambda child: child.visits)  
+
+    def get_all_actions(self) -> List[np.ndarray]:
+        """Get all actions tried from this node (for kernel regression)"""
+        return [child.output for child in self.children]
+    
+    def get_all_values(self) -> List[float]:
+        """Get all values for actions tried from this node (for kernel regression)"""
+        return [child.value / child.visits if child.visits > 0 else 0 for child in self.children]
+    
+    def get_all_visits(self) -> List[int]:
+        """Get all visit counts for actions tried from this node (for kernel density)"""
+        return [child.visits for child in self.children] 
 
 
 class MCTSPredictionTree:
@@ -63,7 +75,11 @@ class MCTSPredictionTree:
                  starting_originality_distances: np.ndarray = np.array([0.12, 0.01]),
                  min_originality_distances: np.ndarray = np.array([0.03, 0.005]),
                  snap_to_semitones: bool = True,
-                 max_samples_for_originality: int = 10):
+                 max_samples_for_originality: int = 10,
+                 # Parameters for KR-AUCB
+                 kr_lambda_start: float = 0.0,
+                 kr_lambda_target: float = 0.8,
+                 kr_lambda_schedule_iters: int = 1000):
         self.root = None
         self.initial_lstm_states = initial_lstm_states
         self.simulation_depth = simulation_depth
@@ -75,7 +91,13 @@ class MCTSPredictionTree:
         self.snap_to_semitones = snap_to_semitones
         self.max_samples_for_originality = max_samples_for_originality
 
-        self.verbose = False  # Set to True for verbose output
+        # KR-AUCB parameters
+        self.kr_lambda_start = kr_lambda_start
+        self.kr_lambda_target = kr_lambda_target
+        self.kr_lambda_schedule_iters = kr_lambda_schedule_iters
+        self.kr_lambda = kr_lambda_start  # Current lambda value (will increase over time)
+
+        self.verbose = True  # Set to True for verbose output
         
         self.heuristic_function = None  # TODO delete
     
@@ -102,6 +124,7 @@ class MCTSPredictionTree:
         # Reset statistics
         self.nodes_searched = 0
         self.branches_simulated = 0
+        self.kr_lambda = self.kr_lambda_start
         
         # Create nodes for the entire memory
         nodes = [MCTSNode(output) for output in memory]
@@ -141,7 +164,11 @@ class MCTSPredictionTree:
                 print("Backpropagating")
             self._backpropagate(selected_node, simulation_result)
 
+            # Update lambda for KR-AUCB asymptotic policy
             self.branches_simulated += 1
+            if self.branches_simulated <= self.kr_lambda_schedule_iters:
+                progress = self.branches_simulated / self.kr_lambda_schedule_iters
+                self.kr_lambda = self.kr_lambda_start + progress * (self.kr_lambda_target - self.kr_lambda_start)           
         
         # Return best child after time is up, argmax over visits
         # best child = argmax of initial_node.children visits
@@ -228,6 +255,83 @@ class MCTSPredictionTree:
                     if self.verbose:
                         print(f"Failed progressive widening: {node.failed_progressive_widening}")
                     break
+
+    def _kernel_function(self, a: np.ndarray, b: np.ndarray, sigma: float = 0.1) -> float:
+        """
+        Gaussian kernel function: K(â,a) from Eq. (15)
+        
+        K(â,a) = exp(-0.5·(â-a)ᵀ·Σ⁻¹·(â-a)) / √((2π)^n|Σ|)
+        
+        For simplicity, we use a diagonal covariance matrix Σ = σ²I
+        """
+        # Calculate squared distance
+        d = np.sum(((a - b) / sigma) ** 2)
+        n = len(a)
+        
+        # Calculate kernel value
+        return np.exp(-0.5 * d) / np.sqrt((2 * np.pi) ** n * sigma ** (2 * n))
+    
+    def _kr_aucb_selection(self, node: MCTSNode) -> Optional[MCTSNode]:
+        """
+        Select child using KR-AUCB formula (Eq. 17)
+        
+        arg max[E[v̄_â|â] + c·P_asym(â)·(√(∑W(a))/W(â))]
+        """
+        
+        # Get all actions, values, and visit counts for kernel regression
+        actions = node.get_all_actions()
+        values = node.get_all_values()
+        visits = node.get_all_visits()
+        
+        # Convert to numpy arrays
+        actions = np.array(actions)
+        values = np.array(values)
+        visits = np.array(visits)
+        
+        kr_aucb_values = []
+        
+        # Calculate KR-AUCB for each child
+        for i, child in enumerate(node.children):
+            a_hat = child.output
+            
+            # Calculate kernel weights for all actions relative to this action
+            kernel_weights = np.array([self._kernel_function(a_hat, a) for a in actions])
+            
+            # Calculate E[v̄_â|â] using kernel regression (Eq. 13)
+            # E[v̄_â|â] = (∑_a K(â,a)·v̄_a·n_a) / (∑_a K(â,a)·n_a)
+            weighted_sum_values = np.sum(kernel_weights * values * visits)
+            sum_weights = np.sum(kernel_weights * visits)
+            expected_value = weighted_sum_values / sum_weights if sum_weights > 0 else 0
+            
+            # Calculate W(â) using kernel density (Eq. 14)
+            # W(â) = ∑_a K(â,a)·n_a
+            effective_visits = np.sum(kernel_weights * visits)
+            
+            # Calculate P_asym - asymptotic policy (Eq. 16)
+            # P_asym = λ·P_prior + (1-λ)·P_uniform
+            if hasattr(child, 'prior_prob') and child.prior_prob is not None:
+                # Use stored prior probability if available
+                p_prior = child.prior_prob
+            else:
+                # If prior not available, use equal weights (will be adjusted by GMM later)
+                p_prior = 1.0 / len(node.children)
+            
+            p_uniform = 1.0 / len(node.children)
+            p_asym = self.kr_lambda * p_prior + (1.0 - self.kr_lambda) * p_uniform
+            
+            # Calculate exploration term
+            total_effective_visits = np.sum([np.sum([self._kernel_function(a, a_other) for a_other in actions] * visits) for a in actions])
+            exploration_term = self.exploration_weight * p_asym * np.sqrt(total_effective_visits) / effective_visits if effective_visits > 0 else float('inf')
+            
+            # Calculate KR-AUCB value (Eq. 17)
+            if self.verbose:
+                print(f"Child output: {child.output}, Exploitation: {expected_value}, Exploration: {exploration_term}")
+            kr_aucb_value = expected_value + exploration_term
+            kr_aucb_values.append(kr_aucb_value)
+        
+        # Return child with highest KR-AUCB value
+        print("FINAL KR-AUCB SELECTION: ", node.children[np.argmax(kr_aucb_values)].output)
+        return node.children[np.argmax(kr_aucb_values)]
     
     def _select_and_expand(self, node: MCTSNode, sample_function: Callable) -> Tuple[MCTSNode, List[np.ndarray]]:
         """
@@ -245,10 +349,10 @@ class MCTSPredictionTree:
             # Check progressive widening condition
             self._check_progressive_widening(current, sample_function)
                 
-            # Otherwise, select best child according to UCT
+            # Otherwise, select best child according to KR-AUCB
             if self.verbose:
-                print("Selecting best child with UCT")
-            current = current.best_child(self.exploration_weight, verbose=self.verbose)
+                print("Selecting best child with KR-AUCB")
+            current = self._kr_aucb_selection(current)
             if self.verbose:
                 print(f"Selected child: {current.output}")
             self.nodes_searched += 1
