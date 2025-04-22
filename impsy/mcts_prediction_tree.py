@@ -22,7 +22,7 @@ class MCTSNode:
         self.children.append(child)
         return child
     
-    def best_child(self, exploration_weight: float) -> Optional['MCTSNode']:
+    def best_child(self, exploration_weight: float, verbose: bool = False) -> Optional['MCTSNode']:
         """
         Select the best child according to UCT formula:
         UCT = value/visits + exploration_weight * sqrt(2 * ln(parent_visits) / visits)
@@ -38,10 +38,12 @@ class MCTSNode:
             # Exploration term
             exploration = exploration_weight * math.sqrt(2 * math.log(self.visits) / child.visits) if child.visits > 0 else float('inf')
             
-            print(f"Child output: {child.output}, Exploitation: {exploitation}, Exploration: {exploration}")
+            if verbose:
+                print(f"Child output: {child.output}, Exploitation: {exploitation}, Exploration: {exploration}")
             uct_values.append(exploitation + exploration)
         
-        print("FINAL UCT SELECTION: ", self.children[np.argmax(uct_values)].output)
+        if verbose:
+            print("FINAL UCT SELECTION: ", self.children[np.argmax(uct_values)].output)
         return self.children[np.argmax(uct_values)]
     
     def most_visited_child(self) -> Optional['MCTSNode']:
@@ -72,6 +74,8 @@ class MCTSPredictionTree:
         self.min_originality_distances = min_originality_distances
         self.snap_to_semitones = snap_to_semitones
         self.max_samples_for_originality = max_samples_for_originality
+
+        self.verbose = False  # Set to True for verbose output
         
         self.heuristic_function = None  # TODO delete
     
@@ -119,17 +123,22 @@ class MCTSPredictionTree:
         # MCTS main loop
         while time.time() < end_time:
             # Selection and Expansion
-            print("Selecting and Expanding")
+            if self.verbose:
+                print("Selecting and Expanding")
             selected_node = self._select_and_expand(initial_node, sample_function)
-            print(f"Selected node: {selected_node.output}")
+            if self.verbose:
+                print(f"Selected node: {selected_node.output}")
             
             # Simulation
-            print("Simulating")
+            if self.verbose:
+                print("Simulating")
             simulation_result = self._simulate(selected_node, predict_function, sample_function, heuristic_function)
-            print(f"Simulation result: {simulation_result}")
+            if self.verbose:
+                print(f"Simulation result: {simulation_result}")
             
             # Backpropagation
-            print("Backpropagating")
+            if self.verbose:
+                print("Backpropagating")
             self._backpropagate(selected_node, simulation_result)
 
             self.branches_simulated += 1
@@ -137,8 +146,10 @@ class MCTSPredictionTree:
         # Return best child after time is up, argmax over visits
         # best child = argmax of initial_node.children visits
         best_child = initial_node.most_visited_child()
-        print("Initial node:", initial_node.output)
-        print("Best child:", best_child.output)
+        if self.verbose:
+            print("Initial node:", initial_node.output)
+        if self.verbose:
+            print("Best child:", best_child.output)
         return (best_child.output, initial_node.lstm_states)
 
     def _check_progressive_widening(self, node: MCTSNode, sample_function: Callable) -> None:
@@ -159,8 +170,10 @@ class MCTSPredictionTree:
         if current_actions >= max_actions:
             return
         
-        print("Progressive widening:")
-        print(f"Current actions: {current_actions}, Max actions: {max_actions}")
+        if self.verbose:
+            print("Progressive widening:")
+        if self.verbose:
+            print(f"Current actions: {current_actions}, Max actions: {max_actions}")
             
         # We need to add more actions
         # Get all existing actions to check for originality
@@ -205,13 +218,15 @@ class MCTSPredictionTree:
                 existing_actions.append(new_action)
                 current_actions += 1
                 num_samples = 0  # Reset counter for next action
-                print(f"Added action: {new_action}, Current actions: {current_actions}")
+                if self.verbose:
+                    print(f"Added action: {new_action}, Current actions: {current_actions}")
             else:
                 num_samples += 1
                 # If we've tried too many times, break and don't add any action, as it may be too crowded
                 if num_samples >= self.max_samples_for_originality:
                     node.failed_progressive_widening += 1
-                    print(f"Failed progressive widening: {node.failed_progressive_widening}")
+                    if self.verbose:
+                        print(f"Failed progressive widening: {node.failed_progressive_widening}")
                     break
     
     def _select_and_expand(self, node: MCTSNode, sample_function: Callable) -> Tuple[MCTSNode, List[np.ndarray]]:
@@ -224,19 +239,23 @@ class MCTSPredictionTree:
         current = node
         
         # Selection phase - navigate down the tree with progressive widening at each node
-        print("Selection phase")
+        if self.verbose:
+            print("Selection phase")
         while current.children:  # As long as we have children to explore
             # Check progressive widening condition
             self._check_progressive_widening(current, sample_function)
                 
             # Otherwise, select best child according to UCT
-            print("Selecting best child with UCT")
-            current = current.best_child(self.exploration_weight)
-            print(f"Selected child: {current.output}")
+            if self.verbose:
+                print("Selecting best child with UCT")
+            current = current.best_child(self.exploration_weight, verbose=self.verbose)
+            if self.verbose:
+                print(f"Selected child: {current.output}")
             self.nodes_searched += 1
             
         # Expansion phase, this is simply another progressive widening check to add a child since the current node will have no children
-        print("Expansion phase")
+        if self.verbose:
+            print("Expansion phase")
         self._check_progressive_widening(current, sample_function)
         if current.children:
             # If child added by progressive widening, select one
@@ -250,7 +269,8 @@ class MCTSPredictionTree:
         """
         depth = 0
 
-        print("Simulation from branch: ", self._extract_branch(selected_node))
+        if self.verbose:
+            print("Simulation from branch: ", self._extract_branch(selected_node))
         
         # Get the GMM and lstm_states for the current node if not already computed
         if selected_node.gmm is None:  
@@ -272,7 +292,8 @@ class MCTSPredictionTree:
         
         # Concatenate the simulated outputs with the original branch
         simulated_branch = np.concatenate([self._extract_branch(selected_node), np.array(simulation_outputs)])
-        print("Simulated branch: ", simulated_branch)
+        if self.verbose:
+            print("Simulated branch: ", simulated_branch)
 
         # Evaluate the simulated branch using the heuristic function
         return heuristic_function(simulated_branch)
@@ -283,7 +304,8 @@ class MCTSPredictionTree:
         while current:
             current.visits += 1
             current.value += result
-            print(f"Backpropagating: {current.output}, Visits: {current.visits}, Value: {current.value}, Average: {current.value / current.visits}")
+            if self.verbose:
+                print(f"Backpropagating: {current.output}, Visits: {current.visits}, Value: {current.value}, Average: {current.value / current.visits}")
             current = current.parent
     
     def _extract_branch(self, node: MCTSNode) -> Tuple[np.ndarray, List]:
