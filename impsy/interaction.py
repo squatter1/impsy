@@ -307,8 +307,8 @@ class InteractionServer(object):
                     memory=self.rnn_output_memory,
                     predict_function=neural_net.generate_gmm, 
                     sample_function=neural_net.sample_gmm,
-                    heuristic_function=lambda x: heuristics.rhythmic_consistency_to_value(x, item[0]),
-                    time_limit_ms=150
+                    heuristic_function=lambda x: heuristics.rhythmic_consistency_to_value(x, item[0], False),
+                    time_limit_ms=1000
                 )
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
@@ -345,7 +345,7 @@ class InteractionServer(object):
                     predict_function=neural_net.generate_gmm, 
                     sample_function=neural_net.sample_gmm,
                     heuristic_function=heuristics.null_heuristic,
-                    time_limit_ms=150
+                    time_limit_ms=1000
                 )
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())

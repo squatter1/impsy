@@ -12,12 +12,13 @@ def rhythmic_range(branch: np.ndarray) -> float:
     # Return the difference between the min and max of the first elements in each array within this 2d array, + 0.01 * length
     return (np.min(branch[:, 0]) - np.max(branch[:, 0])) + 0.01 * len(branch)
 
-def rhythmic_consistency_to_value(branch: np.ndarray, value=0.25) -> float:
+def rhythmic_consistency_to_value(branch: np.ndarray, value=0.25, verbose=False) -> float:
     # Return the average deviation of the first elements in each array within this 2d array from the value
-    print("Running heuristic")
-    print("Intervals:", branch[:, 0])
-    print("Value:", value)
-    print("Heuristic value:", -np.mean(np.abs(branch[:, 0] - value)))
+    if verbose:
+        print("Running heuristic")
+        print("Intervals:", branch[:, 0])
+        print("Value:", value)
+        print("Heuristic value:", -np.mean(np.abs(branch[:, 0] - value)))
     return -np.mean(np.abs(branch[:, 0] - value))
 
 def pitch_consistency(branch: np.ndarray) -> float:
