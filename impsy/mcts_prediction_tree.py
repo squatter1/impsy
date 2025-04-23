@@ -21,6 +21,12 @@ class MCTSNode:
         self.visits = 0
         self.value = 0.0
         self.failed_progressive_widening = 0  # Count of failed progressive widening attempts, too many leads to assumption all valid unique children have been added
+
+    def delete_children(self, exception: Optional['MCTSNode'] = None) -> None:
+        for child in self.children:
+            if child != exception:
+                child.delete_children()
+        self.children.clear()  # Clear the list of children, this will trigger python's garbage collection
         
     def add_child(self, output: np.ndarray, snap_dp: [Optional[int]]) -> 'MCTSNode':
         """Add a child node with the given output and return it"""
@@ -68,7 +74,10 @@ class MCTSNode:
 
 class MCTSPredictionTree:
     def __init__(self, 
+                 root_output: np.ndarray,
                  initial_lstm_states: np.ndarray,
+                 predict_function: Callable, 
+                 sample_function: Callable,
                  simulation_depth: int = 2, 
                  exploration_weight: float = 1.0,
                  progressive_widening_k: float = 1.0,
@@ -81,8 +90,12 @@ class MCTSPredictionTree:
                  kr_lambda_start: float = 0.0,
                  kr_lambda_target: float = 0.8,
                  kr_lambda_schedule_iters: int = 1000):
-        self.root = None
+        self.root = MCTSNode(root_output, snap_dp=snap_dp)
+        # Get the GMM for the root
+        self.root.gmm, self.root.lstm_states = predict_function(self.root.output, init_lstm_states=initial_lstm_states)
         self.initial_lstm_states = initial_lstm_states
+        self.predict_function = predict_function
+        self.sample_function = sample_function
         self.simulation_depth = simulation_depth
         self.exploration_weight = exploration_weight
         self.progressive_widening_k = progressive_widening_k
@@ -99,46 +112,46 @@ class MCTSPredictionTree:
         self.kr_lambda = kr_lambda_start  # Current lambda value (will increase over time)
 
         self.verbose = False  # Set to True for verbose output
+
+    def set_root(self, new_root_output: np.ndarray) -> None:
+        """Set the new root to the child of the current root with the given output"""
+        # Find the child with the given output
+        for child in self.root.children:
+            if np.array_equal(child.output, new_root_output):
+                self.root.delete_children(exception=child)  # Delete all other children of the current root
+                # Set the new root to this child
+                self.root = child
+                break
+        else:
+            raise ValueError(f"Child with output {new_root_output} not found in root children.")
     
     def search(self, 
                memory: List[np.ndarray], 
-               predict_function: Callable, 
-               sample_function: Callable,
                heuristic_function: Callable,
                time_limit_ms: int = 1000) -> Tuple[np.ndarray, List, float]:
         """
         Run MCTS for the given time limit and return the best branch found
         
         Args:
-            memory: Initial sequence of notes
-            predict_function: Function to predict next note probabilities
-            sample_function: Function to sample from GMM
+            memory: Initial sequence of notes prior to root node
             heuristic_function: Function to evaluate a branch
             time_limit_ms: Time limit in milliseconds
             
         Returns:
-            Tuple of (best branch, lstm states, score)
+            Tuple of (best_child, lstm states)
         """
-        self.heuristic_function = heuristic_function # TODO delete
+        # Apply snapping to the memory if enabled
+        for i in range(len(memory)):
+            memory[i] = np.array(memory[i])
+            for j in range(len(memory[i])):
+                if self.snap_dp[j] is not None:
+                    memory[i][j] = np.round(memory[i][j], self.snap_dp[j])
+        if self.verbose:
+            print("Starting MCTS search with memory: ", memory)
         # Reset statistics
         self.nodes_searched = 0
         self.branches_simulated = 0
         self.kr_lambda = self.kr_lambda_start
-        
-        # Create nodes for the entire memory (TODO: make this not a Node memory, but a statically stored nparray of outputs)
-        nodes = [MCTSNode(output, snap_dp=self.snap_dp) for output in memory]
-        for i in range(1, len(nodes)):
-            nodes[i].parent = nodes[i-1]
-            nodes[i-1].children.append(nodes[i])
-        
-        self.root = nodes[0]
-        print(f"Root node: {self.root.output[0]}, {self.root.output[1]}")
-        
-        # Set up the initial state
-        initial_node = nodes[-1]
-        
-        # Get the GMM for the root
-        initial_node.gmm, initial_node.lstm_states = predict_function(initial_node.output, init_lstm_states=self.initial_lstm_states)
         
         # Set up time limit
         end_time = time.time() + (time_limit_ms / 1000.0)
@@ -148,14 +161,14 @@ class MCTSPredictionTree:
             # Selection and Expansion
             if self.verbose:
                 print("Selecting and Expanding")
-            selected_node = self._select_and_expand(initial_node, sample_function)
+            selected_node = self._select_and_expand(self.root)
             if self.verbose:
                 print(f"Selected node: {selected_node.output}")
             
             # Simulation
             if self.verbose:
                 print("Simulating")
-            simulation_result = self._simulate(selected_node, predict_function, sample_function, heuristic_function)
+            simulation_result = self._simulate(selected_node, memory, heuristic_function)
             if self.verbose:
                 print(f"Simulation result: {simulation_result}")
             
@@ -166,20 +179,21 @@ class MCTSPredictionTree:
 
             # Update lambda for KR-AUCB asymptotic policy
             self.branches_simulated += 1
-            if self.branches_simulated <= self.kr_lambda_schedule_iters:
-                progress = self.branches_simulated / self.kr_lambda_schedule_iters
-                self.kr_lambda = self.kr_lambda_start + progress * (self.kr_lambda_target - self.kr_lambda_start)           
+            if self.selection_method == 'kr_aucb':
+                if self.branches_simulated <= self.kr_lambda_schedule_iters:
+                    progress = self.branches_simulated / self.kr_lambda_schedule_iters
+                    self.kr_lambda = self.kr_lambda_start + progress * (self.kr_lambda_target - self.kr_lambda_start)           
         
         # Return best child after time is up, argmax over visits
-        # best child = argmax of initial_node.children visits
-        best_child = initial_node.most_visited_child()
+        # best child = argmax of self.root.children visits
+        best_child = self.root.most_visited_child()
         if self.verbose:
-            print("Initial node:", initial_node.output)
+            print("Initial node:", self.root.output)
         if self.verbose:
             print("Best child:", best_child.output)
-        return (best_child.output, initial_node.lstm_states)
+        return (best_child.output, self.root.lstm_states)
 
-    def _check_progressive_widening(self, node: MCTSNode, sample_function: Callable) -> None:
+    def _check_progressive_widening(self, node: MCTSNode) -> None:
         """
         Check if we should add more actions according to progressive widening
         formula: k * n^alpha where n is the visit count
@@ -209,7 +223,7 @@ class MCTSPredictionTree:
             print(f"Existing actions: {existing_actions}")
 
         if len(existing_actions) == 0:
-            new_action = sample_function(node.gmm)
+            new_action = self.sample_function(node.gmm)
             node.add_child(new_action, self.snap_dp)
             return
         
@@ -219,7 +233,7 @@ class MCTSPredictionTree:
             best_originality_score = 0
             for _ in range(self.expansion_samples):
                 # Sample a new action
-                new_action = sample_function(node.gmm)
+                new_action = self.sample_function(node.gmm)
                 # Perform snapping if enabled
                 for i in range(len(new_action)):
                     if self.snap_dp[i] is not None:
@@ -343,7 +357,7 @@ class MCTSPredictionTree:
         print("FINAL KR-AUCB SELECTION: ", node.children[np.argmax(kr_aucb_values)].output)
         return node.children[np.argmax(kr_aucb_values)]
     
-    def _select_and_expand(self, node: MCTSNode, sample_function: Callable) -> Tuple[MCTSNode, List[np.ndarray]]:
+    def _select_and_expand(self, node: MCTSNode) -> Tuple[MCTSNode, List[np.ndarray]]:
         """
         Select a node to expand using UCT and expand it
         Apply progressive widening to dynamically increase available actions
@@ -357,7 +371,7 @@ class MCTSPredictionTree:
             print("Selection phase")
         while current.children:  # As long as we have children to explore
             # Check progressive widening condition
-            self._check_progressive_widening(current, sample_function)
+            self._check_progressive_widening(current)
                 
             # Otherwise, select best child according to selection method\
             if self.selection_method == 'uct':
@@ -379,14 +393,14 @@ class MCTSPredictionTree:
         # Expansion phase, this is simply another progressive widening check to add a child since the current node will have no children
         if self.verbose:
             print("Expansion phase")
-        self._check_progressive_widening(current, sample_function)
+        self._check_progressive_widening(current)
         if current.children:
             # If child added by progressive widening, select one
             current = current.children[0]
         
         return current
     
-    def _simulate(self, selected_node: MCTSNode, predict_function: Callable, sample_function: Callable, heuristic_function: Callable) -> float:
+    def _simulate(self, selected_node: MCTSNode, memory: List[np.ndarray], heuristic_function: Callable) -> float:
         """
         Run a simulation from the given node to estimate its value
         """
@@ -397,7 +411,7 @@ class MCTSPredictionTree:
         
         # Get the GMM and lstm_states for the current node if not already computed
         if selected_node.gmm is None:  
-            selected_node.gmm, selected_node.lstm_states = predict_function(selected_node.output, init_lstm_states=selected_node.parent.lstm_states)
+            selected_node.gmm, selected_node.lstm_states = self.predict_function(selected_node.output, init_lstm_states=selected_node.parent.lstm_states)
         
         # Continue simulation until we reach max depth
         current_gmm = selected_node.gmm
@@ -405,16 +419,18 @@ class MCTSPredictionTree:
         simulation_outputs = []
         while depth < self.simulation_depth:
             # Sample next node
-            action = sample_function(current_gmm)
+            action = self.sample_function(current_gmm)
             simulation_outputs.append(action)
             depth += 1
 
             # If max depth not reached, predict next GMM and lstm states
             if depth < self.simulation_depth:
-                current_gmm, current_lstm_states = predict_function(action, init_lstm_states=current_lstm_states)
+                current_gmm, current_lstm_states = self.predict_function(action, init_lstm_states=current_lstm_states)
         
         # Concatenate the simulated outputs with the original branch
         simulated_branch = np.concatenate([self._extract_branch(selected_node), np.array(simulation_outputs)])
+        if len(memory) > 0:
+            simulated_branch = np.concatenate([memory, simulated_branch])
         if self.verbose:
             print("Simulated branch: ", simulated_branch)
 
