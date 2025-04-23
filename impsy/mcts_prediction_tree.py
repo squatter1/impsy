@@ -4,8 +4,14 @@ from typing import List, Tuple, Optional, Callable
 import math
 
 class MCTSNode:
-    def __init__(self, output: np.ndarray, parent=None, lstm_states=None):
+    def __init__(self, output: np.ndarray, parent=None, lstm_states=None, snap_dp: [Optional[int]] = [None, 2]):
         self.output = output
+        # For each dimension, check if snapping is enabled and adjust distance accordingly
+        for i in range(len(output)):
+            if snap_dp[i] is not None:
+                # Round to the snapped number of decimal places
+                # This is for semitone snapping pitch instruments and other non-continuous cases
+                self.output[i] = np.round(self.output[i], snap_dp[i])
         self.parent = parent
         self.lstm_states = lstm_states
         self.gmm = None
@@ -16,27 +22,24 @@ class MCTSNode:
         self.value = 0.0
         self.failed_progressive_widening = 0  # Count of failed progressive widening attempts, too many leads to assumption all valid unique children have been added
         
-    def add_child(self, output: np.ndarray) -> 'MCTSNode':
+    def add_child(self, output: np.ndarray, snap_dp: [Optional[int]]) -> 'MCTSNode':
         """Add a child node with the given output and return it"""
-        child = MCTSNode(output, parent=self)
+        child = MCTSNode(output, parent=self, snap_dp=snap_dp)
         self.children.append(child)
         return child
     
-    def best_child(self, exploration_weight: float, verbose: bool = False) -> Optional['MCTSNode']:
+    def uct_child(self, exploration_weight: float, verbose: bool = False) -> Optional['MCTSNode']:
         """
         Select the best child according to UCT formula:
         UCT = value/visits + exploration_weight * sqrt(2 * ln(parent_visits) / visits)
         """
-        if not self.children:
-            return None
-        
         uct_values = []
         for child in self.children:
             # Exploitation term
             exploitation = child.value / child.visits if child.visits > 0 else 0
             
             # Exploration term
-            exploration = exploration_weight * math.sqrt(2 * math.log(self.visits) / child.visits) if child.visits > 0 else float('inf')
+            exploration = exploration_weight * math.sqrt(math.log(self.visits) / child.visits) if child.visits > 0 else float('inf')
             
             if verbose:
                 print(f"Child output: {child.output}, Exploitation: {exploitation}, Exploration: {exploration}")
@@ -48,9 +51,19 @@ class MCTSNode:
     
     def most_visited_child(self) -> Optional['MCTSNode']:
         """Return the child with the most visits"""
-        if not self.children:
-            return None
-        return max(self.children, key=lambda child: child.visits)   
+        return max(self.children, key=lambda child: child.visits)  
+
+    def get_all_actions(self) -> List[np.ndarray]:
+        """Get all actions tried from this node as a np array (for kernel regression)"""
+        return [child.output for child in self.children]
+    
+    def get_all_values(self) -> List[float]:
+        """Get all values for actions tried from this node (for kernel regression)"""
+        return [child.value / child.visits if child.visits > 0 else 0 for child in self.children]
+    
+    def get_all_visits(self) -> List[int]:
+        """Get all visit counts for actions tried from this node (for kernel density)"""
+        return [child.visits for child in self.children] 
 
 
 class MCTSPredictionTree:
@@ -60,24 +73,32 @@ class MCTSPredictionTree:
                  exploration_weight: float = 1.0,
                  progressive_widening_k: float = 1.0,
                  progressive_widening_alpha: float = 0.5,
-                 starting_originality_distances: np.ndarray = np.array([0.12, 0.01]),
-                 min_originality_distances: np.ndarray = np.array([0.03, 0.005]),
-                 snap_to_semitones: bool = True,
-                 max_samples_for_originality: int = 10):
+                 min_originality_distances: np.ndarray = np.array([0.03, 0.0005]),
+                 expansion_samples: int = 10,
+                 snap_dp: [Optional[int]] = [None, 2],
+                 selection_method: str = 'uct',
+                 # Parameters for KR-AUCB
+                 kr_lambda_start: float = 0.0,
+                 kr_lambda_target: float = 0.8,
+                 kr_lambda_schedule_iters: int = 1000):
         self.root = None
         self.initial_lstm_states = initial_lstm_states
         self.simulation_depth = simulation_depth
         self.exploration_weight = exploration_weight
         self.progressive_widening_k = progressive_widening_k
         self.progressive_widening_alpha = progressive_widening_alpha
-        self.starting_originality_distances = starting_originality_distances
         self.min_originality_distances = min_originality_distances
-        self.snap_to_semitones = snap_to_semitones
-        self.max_samples_for_originality = max_samples_for_originality
+        self.expansion_samples = expansion_samples
+        self.snap_dp = snap_dp
+
+        self.selection_method = selection_method
+        # KR-AUCB parameters
+        self.kr_lambda_start = kr_lambda_start
+        self.kr_lambda_target = kr_lambda_target
+        self.kr_lambda_schedule_iters = kr_lambda_schedule_iters
+        self.kr_lambda = kr_lambda_start  # Current lambda value (will increase over time)
 
         self.verbose = False  # Set to True for verbose output
-        
-        self.heuristic_function = None  # TODO delete
     
     def search(self, 
                memory: List[np.ndarray], 
@@ -102,14 +123,16 @@ class MCTSPredictionTree:
         # Reset statistics
         self.nodes_searched = 0
         self.branches_simulated = 0
+        self.kr_lambda = self.kr_lambda_start
         
-        # Create nodes for the entire memory
-        nodes = [MCTSNode(output) for output in memory]
+        # Create nodes for the entire memory (TODO: make this not a Node memory, but a statically stored nparray of outputs)
+        nodes = [MCTSNode(output, snap_dp=self.snap_dp) for output in memory]
         for i in range(1, len(nodes)):
             nodes[i].parent = nodes[i-1]
             nodes[i-1].children.append(nodes[i])
         
         self.root = nodes[0]
+        print(f"Root node: {self.root.output[0]}, {self.root.output[1]}")
         
         # Set up the initial state
         initial_node = nodes[-1]
@@ -141,7 +164,11 @@ class MCTSPredictionTree:
                 print("Backpropagating")
             self._backpropagate(selected_node, simulation_result)
 
+            # Update lambda for KR-AUCB asymptotic policy
             self.branches_simulated += 1
+            if self.branches_simulated <= self.kr_lambda_schedule_iters:
+                progress = self.branches_simulated / self.kr_lambda_schedule_iters
+                self.kr_lambda = self.kr_lambda_start + progress * (self.kr_lambda_target - self.kr_lambda_start)           
         
         # Return best child after time is up, argmax over visits
         # best child = argmax of initial_node.children visits
@@ -160,7 +187,7 @@ class MCTSPredictionTree:
         Uses per-dimension originality constraints - action is original if at least one dimension
         meets the required distance.
         """
-        if node.gmm is None or node.failed_progressive_widening >= 2:
+        if node.gmm is None or node.failed_progressive_widening >= 5:
             return
             
         max_actions = max(1, int(self.progressive_widening_k * (node.visits ** self.progressive_widening_alpha)))
@@ -178,56 +205,143 @@ class MCTSPredictionTree:
         # We need to add more actions
         # Get all existing actions to check for originality
         existing_actions = [child.output for child in node.children]
-        
-        # Add a new action with originality constraint
-        num_samples = 0
-        while current_actions < max_actions:
-            # Sample a new action
-            new_action = sample_function(node.gmm)
-            
-            # Calculate dynamic epsilon based on number of samples for each dimension
-            # Dynamic epsilon: scale from starting to min distance based on number of samples
-            if node.failed_progressive_widening == 0:
-                scaling_factor = np.minimum(1.0, num_samples / self.max_samples_for_originality)
-            else:
-                scaling_factor = 1.0
-            epsilon = self.starting_originality_distances - scaling_factor * (
-                self.starting_originality_distances - self.min_originality_distances)
-            
-            # Check if the action is original enough in at least one dimension
-            is_original = True
-            
-            # Check distance to all existing actions
-            for action in existing_actions:
-                # Calculate per-dimension distances
-                distances = np.abs(new_action - action)
+        if self.verbose:
+            print(f"Existing actions: {existing_actions}")
 
-                if self.snap_to_semitones:
-                    # Calculate the distance of the second dimension differently, first round to the nearest 0.01
-                    # This is for semitone snapping pitch instruments
-                    distances[1] = np.abs(np.round(new_action[1], 2) - np.round(action[1], 2))
+        if len(existing_actions) == 0:
+            new_action = sample_function(node.gmm)
+            node.add_child(new_action, self.snap_dp)
+            return
+        
+        # Add a new action with originality constraints
+        while current_actions < max_actions:
+            best_new_action = None
+            best_originality_score = 0
+            for _ in range(self.expansion_samples):
+                # Sample a new action
+                new_action = sample_function(node.gmm)
+                # Perform snapping if enabled
+                for i in range(len(new_action)):
+                    if self.snap_dp[i] is not None:
+                        new_action[i] = np.round(new_action[i], self.snap_dp[i])
                 
-                # Action is not original if ALL dimensions are too close
-                if np.all(distances < epsilon):
-                    is_original = False
-                    break
+                # Check if the action is original enough in at least one dimension
+                is_original = True
+                originality_scores = []
+                for action in existing_actions:
+                    # Calculate per-dimension distances
+                    distances = np.abs(new_action - action)
+                    
+                    # Action is not original if ALL dimensions are too close
+                    if np.all(distances < self.min_originality_distances):
+                        is_original = False
+                        break
+    
+                    # If it is original enough, calculate the originality score as the sum of multiples the distance is of the minimum
+                    originality_scores.append(np.sum(distances / self.min_originality_distances))
+                if is_original:
+                    originality_score = np.min(originality_scores)
+                    if originality_score > best_originality_score:
+                        best_originality_score = originality_score
+                        best_new_action = new_action
             
-            # If original, add it; otherwise, try again with a relaxed constraint
-            if is_original:
-                node.add_child(new_action)
-                existing_actions.append(new_action)
+            # If original action found, add it
+            if best_new_action is not None:
+                node.add_child(best_new_action, self.snap_dp)
+                existing_actions.append(best_new_action)
                 current_actions += 1
-                num_samples = 0  # Reset counter for next action
+                node.failed_progressive_widening = 0  # Reset failed progressive widening count
                 if self.verbose:
-                    print(f"Added action: {new_action}, Current actions: {current_actions}")
+                    print(f"Added action: {best_new_action}, Current actions: {current_actions}")
+            # Otherwise don't add anything
             else:
-                num_samples += 1
-                # If we've tried too many times, break and don't add any action, as it may be too crowded
-                if num_samples >= self.max_samples_for_originality:
-                    node.failed_progressive_widening += 1
-                    if self.verbose:
-                        print(f"Failed progressive widening: {node.failed_progressive_widening}")
-                    break
+                node.failed_progressive_widening += 1
+                if self.verbose:
+                    print(f"Failed progressive widening: {node.failed_progressive_widening}")
+                break
+
+    def _kernel_function(self, a: np.ndarray, b: np.ndarray) -> float:
+        """
+        Gaussian kernel function: K(â,a) from Eq. (15)
+        
+        K(â,a) = exp(-0.5·(â-a)ᵀ·Σ⁻¹·(â-a)) / √((2π)^n|Σ|)
+        
+        For simplicity, we use a diagonal covariance matrix Σ = σ²I
+        """
+        # Calculate squared distance
+        d = np.sum((a - b) ** 2)
+        n = len(a)
+        
+        # Calculate kernel value
+        return np.exp(-0.5 * d) / np.sqrt((2 * np.pi) ** n)
+    
+    def _kr_aucb_selection(self, node: MCTSNode) -> Optional[MCTSNode]:
+        """
+        Select child using KR-AUCB formula (Eq. 17)
+        
+        arg max[E[v̄_â|â] + c·P_asym(â)·(√(∑W(a))/W(â))]
+        """
+        
+        # Get all actions, values, and visit counts for kernel regression
+        actions = np.array(node.get_all_actions())
+        values = np.array(node.get_all_values())
+        visits = np.array(node.get_all_visits())
+        
+        kr_aucb_values = []
+
+        print("KR-AUCB SELECTION FOR:", node.output)
+        
+        # Calculate KR-AUCB for each child
+        for child in node.children:
+            a_hat = child.output
+            print()
+            print(f"Calculating for Child: {child.output}")
+            
+            # Calculate kernel weights for all actions relative to this action
+            kernel_weights = np.array([self._kernel_function(a_hat, a) for a in actions])
+
+            for action in actions:
+                print(f"Action: {action}, Kernel weight: {self._kernel_function(a_hat, action)}, Value: {values[np.where((actions == action).all(axis=1))[0][0]]}, Visits: {visits[np.where((actions == action).all(axis=1))[0][0]]}")
+            
+            # Calculate E[v̄_â|â] using kernel regression (Eq. 13)
+            # E[v̄_â|â] = (∑_a K(â,a)·v̄_a·n_a) / (∑_a K(â,a)·n_a)
+            weighted_sum_values = np.sum(kernel_weights * values * visits)
+            sum_weights = np.sum(kernel_weights * visits)
+            expected_value = weighted_sum_values / sum_weights if sum_weights > 0 else 0
+            print(f"Expected value: {expected_value}")
+            
+            # Calculate W(â) using kernel density (Eq. 14)
+            # W(â) = ∑_a K(â,a)·n_a
+            effective_visits = np.sum(kernel_weights * visits)
+            print(f"Effective visits: {effective_visits}")
+            
+            # Calculate P_asym - asymptotic policy (Eq. 16)
+            # P_asym = λ·P_prior + (1-λ)·P_uniform
+            if hasattr(child, 'prior_prob') and child.prior_prob is not None:
+                # Use stored prior probability if available
+                p_prior = child.prior_prob
+            else:
+                # If prior not available, use equal weights (will be adjusted by GMM later)
+                p_prior = 1.0 / len(node.children)
+            
+            p_uniform = 1.0 / len(node.children)
+            p_asym = self.kr_lambda * p_prior + (1.0 - self.kr_lambda) * p_uniform
+            print(f"Lambda: {self.kr_lambda}, P_prior: {p_prior}, P_uniform: {p_uniform}, P_asym: {p_asym}")
+            
+            # Calculate exploration term
+            total_effective_visits = np.sum([np.sum([self._kernel_function(a, a_other) for a_other in actions] * visits) for a in actions])
+            exploration_term = self.exploration_weight * p_asym * np.sqrt(total_effective_visits) / effective_visits if effective_visits > 0 else float('inf')
+            print(f"Exploration constant: {self.exploration_weight}, Pasym: {p_asym}, Total effective visits: {total_effective_visits}, Exploration term: {exploration_term}")
+            
+            # Calculate KR-AUCB value (Eq. 17)
+            if self.verbose:
+                print(f"Child output: {child.output}, Exploitation: {expected_value}, Exploration: {exploration_term}")
+            kr_aucb_value = expected_value + exploration_term
+            kr_aucb_values.append(kr_aucb_value)
+        
+        # Return child with highest KR-AUCB value
+        print("FINAL KR-AUCB SELECTION: ", node.children[np.argmax(kr_aucb_values)].output)
+        return node.children[np.argmax(kr_aucb_values)]
     
     def _select_and_expand(self, node: MCTSNode, sample_function: Callable) -> Tuple[MCTSNode, List[np.ndarray]]:
         """
@@ -245,10 +359,19 @@ class MCTSPredictionTree:
             # Check progressive widening condition
             self._check_progressive_widening(current, sample_function)
                 
-            # Otherwise, select best child according to UCT
-            if self.verbose:
-                print("Selecting best child with UCT")
-            current = current.best_child(self.exploration_weight, verbose=self.verbose)
+            # Otherwise, select best child according to selection method\
+            if self.selection_method == 'uct':
+                if self.verbose:
+                    print("Selecting best child with UCT")
+                current = current.uct_child(self.exploration_weight, verbose=self.verbose)
+            elif self.selection_method == 'kr_aucb':
+                current.uct_child(self.exploration_weight, verbose=self.verbose) # TODO delete
+                # Use KR-AUCB selection method
+                if self.verbose:
+                    print("Selecting best child with KR-AUCB")
+                current = self._kr_aucb_selection(current)
+            else:
+                raise ValueError(f"Unknown selection method: {self.selection_method}")
             if self.verbose:
                 print(f"Selected child: {current.output}")
             self.nodes_searched += 1
@@ -339,7 +462,7 @@ class MCTSPredictionTree:
         branch = self._extract_branch(current)
         return branch
     
-    def graph_tree(self, ax=None, title="Monte Carlo Tree Search Visualization"):
+    def graph_tree(self, ax=None, title="Monte Carlo Tree Search Visualization", has_winning_branch=True) -> Tuple:
         """
         Visualize the MCTS tree in 3D.
         
@@ -368,11 +491,15 @@ class MCTSPredictionTree:
         ax.set_title(title)
         
         # Extract winning branch for highlighting
-        winning_branch = self.get_best_branch()
-        print(f"Winning branch: {winning_branch}")
-        # Print the heuristic value of the winning branch
-        heuristic_value = self.heuristic_function(winning_branch)
-        print(f"Heuristic value of winning branch: {heuristic_value}")
+        if has_winning_branch:
+            winning_branch = self.get_best_branch()
+            print(f"Winning branch: {winning_branch}")
+            # Print the heuristic value of the winning branch
+            import impsy.heuristics as heuristics
+            heuristic_value = heuristics.rhythmic_consistency_to_value(winning_branch, value=winning_branch[0][0], verbose=True)
+            print(f"Heuristic value of winning branch: {heuristic_value}")
+        else:
+            winning_branch = None
         
         # Recursively plot nodes and edges
         def plot_node(node, depth=0, parent_pos=None):
@@ -403,7 +530,10 @@ class MCTSPredictionTree:
             pos = (x, y, depth)
             
             # Check if this node is part of the winning branch
-            is_winning = node.output in winning_branch if node.output is not None else False
+            if has_winning_branch:
+                is_winning = node.output[0] in winning_branch[:, 0]
+            else:
+                is_winning = False
             
             # Plot node
             if node.visits > 0:  # Only plot nodes that have been visited
@@ -419,7 +549,10 @@ class MCTSPredictionTree:
                     ax.scatter(x, y, depth, s=node_size, c=node_color, edgecolor='black', alpha=1)
                 else:
                     # Regular node
-                    ax.scatter(x, y, depth, s=node_size, c=node_color, edgecolor='black', alpha=0.35)
+                    if has_winning_branch:
+                        ax.scatter(x, y, depth, s=node_size, c=node_color, edgecolor='black', alpha=0.35)
+                    else:
+                        ax.scatter(x, y, depth, s=node_size, c=node_color, edgecolor='black', alpha=0.8)
                 
                 # Add text annotation with visits count
                 #ax.text(x, y, depth, f"{node.visits}", fontsize=8)
@@ -443,7 +576,10 @@ class MCTSPredictionTree:
                         ax.plot(xs, ys, zs, linewidth=edge_width, color=edge_color, alpha=1)
                     else:
                         # Regular edge
-                        ax.plot(xs, ys, zs, linewidth=edge_width, color=edge_color, alpha=0.15)
+                        if has_winning_branch:
+                            ax.plot(xs, ys, zs, linewidth=edge_width, color=edge_color, alpha=0.15)
+                        else:
+                            ax.plot(xs, ys, zs, linewidth=edge_width, color=edge_color, alpha=0.6)
             
             # Recursively plot children
             for child in node.children:
@@ -472,8 +608,16 @@ class MCTSPredictionTree:
 
         # Adjust Z axis ticks and direction
         z_min, z_max = ax.get_zlim()
-        ax.set_zticks(range(int(z_min), int(z_max) + 1))
+        ax.set_zticks(range(0, int(z_max) + 1))
         ax.invert_zaxis()  # Makes depth 0 at the top
+
+        # Adjust x axis ticks to be in intervals of 200ms from 0 to 1200
+        x_ticks = np.arange(0, 1201, 200)
+        ax.set_xticks(x_ticks)
+
+        # Adjust y axis ticks to be in intervals of 100Hz from 200 to 800
+        y_ticks = np.arange(200, 801, 100)
+        ax.set_yticks(y_ticks)
         
         plt.tight_layout()
         return fig, ax
