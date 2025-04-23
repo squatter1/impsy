@@ -1,8 +1,12 @@
 import numpy as np
 
+def rand_heuristic(branch: np.ndarray) -> float:
+    # Return rand for all branches
+    return np.random.rand()
+
 def null_heuristic(branch: np.ndarray) -> float:
     # Return 0 for all branches
-    return 0.0
+    return 0
 
 def rhythmic_consistency(branch: np.ndarray) -> float:
     # Return the standard deviation of the first elements in each array within this 2d array
@@ -16,7 +20,9 @@ def rhythmic_consistency_to_value(branch: np.ndarray, value=0.25, verbose=False)
     # Return the average deviation of the first elements in each array within this 2d array from the value
     if verbose:
         print("Running heuristic")
-        print("Intervals:", branch[:, 0])
+        print("Intervals: ", branch[:, 0])
+        # print the deviation of each element from the value
+        print("Deviations:", np.abs(branch[:, 0] - value))
         print("Value:", value)
         print("Heuristic value:", -np.mean(np.abs(branch[:, 0] - value)))
     return -np.mean(np.abs(branch[:, 0] - value))

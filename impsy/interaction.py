@@ -307,7 +307,7 @@ class InteractionServer(object):
                     predict_function=neural_net.generate_gmm, 
                     sample_function=neural_net.sample_gmm,
                     heuristic_function=lambda x: heuristics.rhythmic_consistency_to_value(x, item[0], False),
-                    time_limit_ms=100
+                    time_limit_ms=300
                 )
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
@@ -317,7 +317,7 @@ class InteractionServer(object):
                 ############################
 
                 # Print the best branch
-                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization")
+                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=True)
                 # Folder to save figures
                 folder = 'prediction_tree_figs'
                 os.makedirs(folder, exist_ok=True)
@@ -333,6 +333,14 @@ class InteractionServer(object):
                 plt.savefig(filepath)
                 plt.show()
 
+                # Print guided tree without winning branch
+                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=False)
+                # Save the plot
+                filename = f"{next_number}nobranch.png"
+                filepath = os.path.join(folder, filename)
+                plt.savefig(filepath)
+                plt.show()
+
                 # NULL HEURISTIC PLOT
                 self.rnn_prediction_tree = MCTSPredictionTree(
                     initial_lstm_states=neural_net.get_lstm_states(),
@@ -344,15 +352,15 @@ class InteractionServer(object):
                     predict_function=neural_net.generate_gmm, 
                     sample_function=neural_net.sample_gmm,
                     heuristic_function=heuristics.null_heuristic,
-                    time_limit_ms=100
+                    time_limit_ms=300
                 )
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
                 # Print the best branch
-                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization")
+                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=False)
                 
                 # Save the plot
-                filename = f"{next_number}null.png"
+                filename = f"{next_number}rand.png"
                 filepath = os.path.join(folder, filename)
                 plt.savefig(filepath)
                 plt.show()
