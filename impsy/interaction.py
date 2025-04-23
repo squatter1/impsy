@@ -266,16 +266,20 @@ class InteractionServer(object):
     def make_prediction(self, neural_net):
         """Part of the interaction loop: reads input, makes predictions, outputs results"""
         # First deal with user --> MDRNN prediction
-        if self.user_to_rnn and not self.interface_input_queue.empty():
+        if self.user_to_rnn and not self.interface_input_queue.empty():  
             item = self.interface_input_queue.get(block=True, timeout=None)
+            if self.use_prediction_tree:
+                # If we are using a prediction tree, delete it
+                if self.rnn_prediction_tree is not None:
+                    self.rnn_prediction_tree = None
+                # Store item in output memory.
+                self.rnn_output_memory.append(tuple(item))
+                if len(self.rnn_output_memory) > self.rnn_output_memory_size:
+                    self.rnn_output_memory.pop(0)
             rnn_output = neural_net.generate(item)
             if self.rnn_to_sound:
                 self.rnn_output_buffer.put_nowait(rnn_output)
             self.interface_input_queue.task_done()
-
-            # TODO we should create the prediction tree here, store it, and then repeatedly use it in MDRNN -> MDRNN
-
-            # TODO: also ensure we're adding to rnn_output_memory here.
 
         # Now deal with MDRNN --> MDRNN prediction.
         if (
@@ -285,93 +289,101 @@ class InteractionServer(object):
         ):
             # Get the next item from the prediction queue.
             item = self.rnn_prediction_queue.get(block=True, timeout=None)
-            # If memory is length zero, set memory to the current item.
-            if not self.rnn_output_memory:
-                self.rnn_output_memory = [item]
             if not self.use_prediction_tree:
                 # If we aren't use a prediction tree, just predict the next item.
                 rnn_output = neural_net.generate(item)
             else:
-                # If we are using a prediction tree, build it
+                # If no prediction tree exists, create one.
+                if self.rnn_prediction_tree is None:
+                    self.rnn_prediction_tree = MCTSPredictionTree(
+                        root_output=item,
+                        initial_lstm_states=neural_net.get_lstm_states(),
+                        predict_function=neural_net.generate_gmm, 
+                        sample_function=neural_net.sample_gmm,
+                        simulation_depth=4, 
+                        exploration_weight=0.1,
+                    )
+                else:
+                    # We are not in the first iteration (which is a repeat item) so we can safely modify our output memory
+                    # Store item in output memory.
+                    self.rnn_output_memory.append(tuple(item))
+                    if len(self.rnn_output_memory) > self.rnn_output_memory_size:
+                        self.rnn_output_memory.pop(0)
+                # If we are using a prediction tree, conduct a search.
                 start_time = time.time()
-                # TODO: we need the prediction tree setup to include adding lstm memory, do this in user -> MDRNN?
-                self.rnn_prediction_tree = MCTSPredictionTree(
-                    initial_lstm_states=neural_net.get_lstm_states(),
-                    simulation_depth=4, 
-                    exploration_weight=0.1,
-                )
-                print("ITEM:", item)
-                print("Searching with memory:", self.rnn_output_memory)
                 best_output = self.rnn_prediction_tree.search(
-                    memory=self.rnn_output_memory,
-                    predict_function=neural_net.generate_gmm, 
-                    sample_function=neural_net.sample_gmm,
-                    heuristic_function=lambda x: heuristics.rhythmic_consistency_to_value(x, item[0], False),
-                    time_limit_ms=300
+                    memory=self.rnn_output_memory[:-1],
+                    heuristic_function=lambda x: heuristics.rhythmic_consistency_to_value(x, 1.2, False),
+                    time_limit_ms=100
                 )
-                print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
-                print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
-                rnn_output = neural_net.generate(item)
+                self.rnn_prediction_tree.set_root(best_output[0])
+                print("OUTPUT:", best_output[0])
+
+
                 ############################
                 # FOR PREDICTION TREE FIGS #
                 ############################
 
-                # Print the best branch
-                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=True)
-                # Folder to save figures
-                folder = 'prediction_tree_figs'
-                os.makedirs(folder, exist_ok=True)
-                
-                # Find the next available integer filename
-                existing_files = os.listdir(folder)
-                existing_numbers = [int(f.split('.')[0]) for f in existing_files if f.split('.')[0].isdigit()]
-                next_number = max(existing_numbers) + 1 if existing_numbers else 1
-                
-                # Save the plot
-                filename = f"{next_number}.png"
-                filepath = os.path.join(folder, filename)
-                plt.savefig(filepath)
-                plt.show()
+                #print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
+                #print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
+                #
+                ## Print the best branch
+                #fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=True)
+                ## Folder to save figures
+                #folder = 'prediction_tree_figs'
+                #os.makedirs(folder, exist_ok=True)
+                #
+                ## Find the next available integer filename
+                #existing_files = os.listdir(folder)
+                #existing_numbers = [int(f.split('.')[0]) for f in existing_files if f.split('.')[0].isdigit()]
+                #next_number = max(existing_numbers) + 1 if existing_numbers else 1
+                #
+                ## Save the plot
+                #filename = f"{next_number}.png"
+                #filepath = os.path.join(folder, filename)
+                #plt.savefig(filepath)
+                #plt.show()
+#
+                ## Print guided tree without winning branch
+                #fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=False)
+                ## Save the plot
+                #filename = f"{next_number}nobranch.png"
+                #filepath = os.path.join(folder, filename)
+                #plt.savefig(filepath)
+                #plt.show()
+#
+                ## NULL HEURISTIC PLOT
+                #self.rnn_prediction_tree = MCTSPredictionTree(
+                #    initial_lstm_states=neural_net.get_lstm_states(),
+                #    simulation_depth=4, 
+                #    exploration_weight=0.1,
+                #)
+                #best_output = self.rnn_prediction_tree.search(
+                #    memory=self.rnn_output_memory, 
+                #    predict_function=neural_net.generate_gmm, 
+                #    sample_function=neural_net.sample_gmm,
+                #    heuristic_function=heuristics.null_heuristic,
+                #    time_limit_ms=300
+                #)
+                #print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
+                #print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
+                ## Print the best branch
+                #fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=False)
+                #
+                ## Save the plot
+                #filename = f"{next_number}rand.png"
+                #filepath = os.path.join(folder, filename)
+                #plt.savefig(filepath)
+                #plt.show()
+                #
+                ## Close the plot if you're done
+                #plt.close()
+                ## Wait for 100s
+                #time.sleep(10)
 
-                # Print guided tree without winning branch
-                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=False)
-                # Save the plot
-                filename = f"{next_number}nobranch.png"
-                filepath = os.path.join(folder, filename)
-                plt.savefig(filepath)
-                plt.show()
-
-                # NULL HEURISTIC PLOT
-                self.rnn_prediction_tree = MCTSPredictionTree(
-                    initial_lstm_states=neural_net.get_lstm_states(),
-                    simulation_depth=4, 
-                    exploration_weight=0.1,
-                )
-                best_output = self.rnn_prediction_tree.search(
-                    memory=self.rnn_output_memory, 
-                    predict_function=neural_net.generate_gmm, 
-                    sample_function=neural_net.sample_gmm,
-                    heuristic_function=heuristics.null_heuristic,
-                    time_limit_ms=300
-                )
-                print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
-                print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
-                # Print the best branch
-                fig, ax = self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=False)
-                
-                # Save the plot
-                filename = f"{next_number}rand.png"
-                filepath = os.path.join(folder, filename)
-                plt.savefig(filepath)
-                plt.show()
-                
-                # Close the plot if you're done
-                plt.close()
-                # Wait for 100s
-                time.sleep(10)
 
 
-                
+
 
                 print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
                 print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
@@ -381,10 +393,6 @@ class InteractionServer(object):
                 rnn_output = best_output[0]
                 neural_net.set_lstm_states(best_output[1])
                 print(f"Time taken: {end_time - start_time}")
-            # Store output in output memory.
-            self.rnn_output_memory.append(rnn_output)
-            if len(self.rnn_output_memory) > self.rnn_output_memory_size:
-                self.rnn_output_memory.pop(0)
             # Put the output into the playback queue.
             self.rnn_output_buffer.put_nowait(
                 rnn_output
