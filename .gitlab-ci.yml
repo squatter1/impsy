@@ -26,3 +26,5 @@ build_pdf:
     paths:
       - mainfile.pdf
     expire_in: 1 week
+  tags:
+    - comp2300
