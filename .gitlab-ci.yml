@@ -13,14 +13,11 @@ build_pdf:
     - cd $CI_PROJECT_DIR
     # Install any additional LaTeX packages if needed
     # - tlmgr install <package-name>
-    # First LaTeX pass (creates .aux file for BibTeX)
-    - pdflatex -interaction=nonstopmode mainfile.tex
-    # Run BibTeX to process the bibliography
-    - bibtex mainfile
-    # Second LaTeX pass (incorporates bibliography)
-    - pdflatex -interaction=nonstopmode mainfile.tex
-    # Final LaTeX pass (resolves all references)
-    - pdflatex -interaction=nonstopmode mainfile.tex
+    - make
+    # - pdflatex -interaction=nonstopmode mainfile.tex
+    # - bibtex mainfile
+    # - pdflatex -interaction=nonstopmode mainfile.tex
+    # - pdflatex -interaction=nonstopmode mainfile.tex
   # Define artifacts to be saved
   artifacts:
     paths:
