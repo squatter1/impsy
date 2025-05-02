@@ -1,101 +1,196 @@
 \chapter{System Design}\label{chap:systemDesign}
 
-In this chapter we introduce the main content of our research. We begin by providing a broad overview of the design of our system, before discussing in more depth each of the components of the system which we have developed or improved, including details on their implementation. 
+This chapter describes the main content of our research. We begin by providing an overview of the problem our system is trying to solve, define components necessary for understanding this problem, and explain the scope of this problem we specifically tackle and why. We then present an overview of the successor algorithm we have created to attempt to solve this problem, before going into more depth on each the components of this algorithm, including details on their implementation. This includes the Monte Carlo Tree Search (MCTS) algorithm and how it has been integrated into IMPSY, our use of parameter based state representation to build a novel heuristic, and the parameters we have developed to integrate into this heuristic. Videos of the performances using the system, which are also used in our evaluation, as well as the code for the system, can be found on Github\footnote{\url{https://github.com/squatter1/impsy}}
 
-\section{Design Overview}
-TODO
+\section{Problem Formulation}
+It is important to clearly define the problem this system is trying to solve in a more formal manner than previously, before explaining the system itself. We build our work on top of the musical prediction system IMPSY~\cite{Martin2019IMPSY}, which is a system that uses a MDRNN to produce a GMM of possible next notes, with this GMM being randomly sampled from to produce a note. We are specifically interested in the call and response mode of IMPSY, where the user performs for a period opf time, and then when the user stops, the system takes over and aims to predictively continue on from where the user left off. When the system takes over, the MDRNN prediction algorithm is triggered. The input for this MDRNN algorithm is the previous control input played, which is an $n$ dimensional vector representing the state of control parameters for an instrument, necessarily including a time dimension representing the length of time between this control input and when the next control input should happen. The input state also implicitly includes memory of previous control inputs through the LSTM RNN architecture. The output of the MDRNN is a random sample from an $n$ dimensional GMM, with any sample from the GMM representing a control input for the instrument. Our problem formulation is the same as with IMPSY, with our only goal being to improve the prediction process, not to fundamentally change the systems inputs or outputs. Figure~\ref{fig:IMPSY} shows the original IMPSY prediction system, and Figure~\ref{fig:Successor} highlights how our prediction system incorporates and expands upon this. 
 
-\section{Monte-Carlo Tree Search}
-TODO: we need a figure somewhere showing our selection algorithm (progressive widening with baysian optimisation)
+\begin{figure}[th!]
+    \includegraphics[width=14cm]{figures/impsy.jpg}
+    \caption{Reproduction of Figure 2 from~\cite{Martin2019IMPSY} showing the IMPSY prediction process.\label{fig:IMPSY}}
+\end{figure}
 
-The core component of our system is the use of search to generate predictions. For this, a Monte Carlo Tree Search (MCTS) algorithm is used as the basis for generating and searching these prediction trees. MCTS is a heuristic search algorithm for decision processes, most notably employed in game playing and planning.
+\subsection{Scope of our Research}
+Our research aims to be a proof of concept for the use of a combined MDRNN and MCTS prediction system, and so we have limited the scope of our research to a single instrument, a monophonic 2D keyboard. While our system design is generalisable to other instruments, testing on a simple instrument allows us to focus on the core components of our system without adding unnecessary complexity. The first dimension is the required time interval dimension between control inputs, and the second dimension is pitch, which is rounded to the nearest semitone for output.
 
-MCTS builds a search tree incrementally and asymmetrically, focusing on the most promising parts of the search space. The algorithm consists of four main steps: selection, expansion, simulation, and backpropagation.
+\section{The Prediction Algorithm}
+The prediction algorithm we have developed is aimed at guiding the choice of the next control input, instead of randomly sampling it from the GMM. To do this, we create a tree of possible future control inputs over multiple predictive time steps, and choose the most promising branch of this tree to take based on a heuristic. This heuristic aims to immitate the human performers checks and balances when improvising, ensuring that intuitive musical options, which are represented by the GMM, are also musically coherent. Hence, the heuristic is based mostly on musical parameters that psychological research, as well as musical studies, have shown to be relevant the the perceptions and predictions of music by humans. The algorithm is designed to be flexible, with the exact heuristics used being customisable to the instrument used, as well as specific goals of performance or musical norms particular to a specific style or culture. Our scope is limited so that the vast majority of parameters used in our heuristic are generalisable to any instrument with a continuous pitch and time dimension, with the exclusion of one parameter on keys and modes which is specific to 12TET pitched instruments and serves as an example of a more custom parameter. Figure~\ref{fig:Successor} shows the overall structure of our prediction algorithm, and each referenced component will be explained in more detail in the following sections.
 
-\begin{itemize}
-    \item \textbf{Selection:} Starting from the root node, the algorithm selects successive child nodes until a leaf node is reached. The selection is based on a policy that balances exploration and exploitation, typically using the Upper Confidence Bound for Trees (UCT) formula.
-    \item \textbf{Expansion:} If the leaf node is not a terminal state, one or more child nodes are generated and added to the tree.
-    \item \textbf{Simulation:} A simulation (or playout) is run from the newly added node to a terminal state, using a default policy to make decisions.
-    \item \textbf{Backpropagation:} The result of the simulation is propagated back through the tree, updating the nodes' statistics.
-\end{itemize}
+\begin{figure}[th!]
+    \includegraphics[width=14cm]{figures/mcts-overview.jpg}
+    \caption{Our MCTS based prediction process.\label{fig:Successor}}
+\end{figure}
 
-(TODO a more formal algorithmic version, with a diagram, of how MCTS works)
+\subsection{Monte-Carlo Tree Search}
+The generate and search through a tree of predictions, the Monte Carlo Tree Search (MCTS) algorithm is used. MCTS builds a search tree incrementally and asymmetrically, focusing on the most promising parts of the search space. We start with the root node of the search, which is $z_t$, the previously output control state. From this the goal is to output a $z_{t+1}$, which will be one of the children of $z_t$ expanded in the MCTS prediction tree. Each $z_{t+1}$ is assessed by the heuristic values of its explored potential future expansions. 
+The MCTS algorithm consists of looping a sequence of four main steps: selection, expansion, simulation, and backpropagation; until a set time limit for search is reached. By iterating these steps, MCTS gradually builds a search tree and improves its predictions. The algorithm's effectiveness comes from its ability to focus computational resources on the most promising parts of the search space, and at the end of search, the most visited child node of the root node is selected as the best action to take and output as $z_{t+1}$. We will now explain how each of these steps is implemented in more detail. A pseudocode version of the algorithm is shown in Algorithm~\ref{alg:CMCTS}.
 
-By iterating these steps, MCTS gradually builds a search tree and improves its predictions. The algorithm's effectiveness comes from its ability to focus computational resources on the most promising parts of the search space, making it well-suited for complex decision-making tasks. Additionally, as shown in the related work section, MCTS has been successfully applied in combination with MDNs in other domains, particularly robot navigation problems such as self driving cars, and has seen success. To apply MCTS to the predicition system of IMPSY, some notable challenges need to be addressed and accounted for.
+\textbf{Selection:}
+Starting from the root node, the algorithm selects successive child nodes until a leaf node is reached. Our selection process uses a modified version of the the Upper Confidence Bound for Trees (UCT) algorithm, which is a popular method for balancing exploration and exploitation in MCTS. The UCT algorithm selects child nodes based on the formula:
+\begin{equation}
+    UCT = \frac{w_i}{n_i} + c\sqrt{\frac{\ln{N}}{n_i}}
+\end{equation}
+where $w_i$ is the total reward of the child node, $n_i$ is the number of visits to the child node, $N$ is the total number of visits to the parent node, and $c$ is a constantthat     controls the exploration-exploitation trade-off. The algorithm selects the child node with the highest UCT value. This means that it is choosing the child node with thehighest average reward after simulating a potential future path. We modify the use of UCT in two ways.
 
-Firstly, the search space of a musical piece does not have a terminal state, as unlike a game with a clear win or loss condition, a musical piece can, and in the case of IMPSY is assumed to, continue indefinitely. This means that the simulation step of MCTS cannot be run to a terminal state, and instead must be run for a set number of steps. In a basic implementation this can be a fixed number of steps, however for our system we allow the depth of search to be variable based on the 1. how promising this branch of the search tree is, and 2. how much the heuristic value appears to change with increased depth. This allows the system to focus computational resources on the most promising parts of the search space, and to avoid wasting resources on branches that are unlikely to yield useful improvements to predictions. (TODO: chuck in the more complex detail after this is coded properly)
-
-Secondly, the search space of a musical piece is not a discrete space, but a continuous one. This means that we cannot use the traditional action selection method of MCTS, and must instead rely on a continuous MCTS algorithm.
-
-\subsection{Continuous Monte-Carlo Tree Search}
-TODO: the main function of this section should include explaining why progressive widening was chosen (we don't need the complexity of kernal based methods, as some small degree of arbitrary randomness remaining in prediction, just with added guidance, is perfectly fine. We aren't aiming to completely eliminate any element of randomness, as using only randomness has already been shown to produce good results in MDRNN NIME papers)
-For our Continuous Monte-Carlo Tree Search (C-MCTS) implementation, we use progressive widening. Progressive widening gradually adds children to nodes as they are visited more often, allowing the search tree to grow in a controlled manner. In particular, our version of progressive widening selects from a modified GMM produces as an MDN output, and if the result is more than $\epsilon$ away from any existing child nodes, a new child node is added, otherwise the existing child node with the closest value is selected.
-
-We have chosen this technique because progressive widening is simple in that it maintains a discrete search tree. Mixture Density Network outputs were originally used in IMPSY because of the benefit that a small amount of randomness provides in making the system sound more human and natural in its improvisation, and by rounding similar MDN outputs into the same discrete action in the search tree, we can maintain the benefits of this randomness, whilst also controlling it in a way which allows for musical structure.
-
-When using C-MCTS, instead of taking a single MDRNN prediction at each step and choosing randomly from the resulting distribution, the C-MCTS algorithm generates a tree of possible future musical directions for the piece, and hence allows for heuristics to be applied in selecting the most promising direction to take according to set structural parameters. This allows for the system to make more informed decisions about the future of the piece, and to generate more structured and coherent improvisations.
-
-TODO: explain $\epsilon$ and how it is used to determine whether to create a new successor, and how it is progressively lowered around a node whenever that node is re-explored.
+Firstly, since the action space for the children of each node is a GMM and hence continuous, we need to discretize the action space for selection. We do this by using progressive widening. Progressive widening, instead of with discrete actions where all actions are expanded at once during the expansion phase, only expands one randomly sampled action from the action space when first expanding a node. Additional nodes are added during selection if an action reaches a threshold of visits. The number of children a node $z$ has, $N_{z}$, is given by the formula:
+\begin{equation}
+    N_{z} = kn^{\alpha}
+\end{equation}
+where $n$ is the number of visits to the node, and $k$ and $\alpha$ are constants that control the growth of the action space. Whenever the calculated $N_{z_t}$ is greater than the actual number of children of $z_t$, the expansion process is triggered and a new child node is added if possible.
 
 \begin{figure}[th!]
     \includegraphics[width=9cm]{figures/MCTS-figure-draft.jpg}
-    \caption{C-MCTS algorithm applied to IMPSY.\label{fig:CMCTS}}
+    \caption{TODO: make this specifically a figure explaining progressive widening. C-MCTS algorithm applied to IMPSY.\label{fig:CMCTS}}
 \end{figure}
 
-\section{The Successor Algorithm}
-Note how the successor algorithm is entered, eg create prediction tree at first human -> system prediction, continuously expand upon this tree as more system -> system predictions take place.
-Explain the algorithm used to find $z_{t+1}$ given $z_t$. This includes all of the MDRNN stuff to generate a GMM, this GMM is the 'action space' for a state, use 'action space' to generate an C-MCTS tree from a $z_t$ state. Then select the best branch via a heuristic, and hence the best $z_{t+1}$. Then save the tree from $z_{t+1}$ for the next iteration of the algorithm. This is the core of the system.
+The second modification to UCT notes the fact that UCT optimises entirely for the average reward of a child node. This is ideal for adversarial games, where another agent is fighting against you and so the average is the best you can hope for. However, in our case, we are not trying to optimise for the average reward, but instead for the maximum reward. This is because future actions are not adversarial but instead continue on from the work of the current search, and so we are able to aim toward the best possible solutions. Switching entirely to a greedy strategy would not be ideal, as it would lead to local optima and a lack of exploration. Instead, we use a modified version of the UCT algorithm which uses a weighted average of the best child node and the average child node. This is done by modifying the UCT formula to:
+\begin{equation}
+    UCT = w_{best} + \beta\frac{w_i}{n_i} + c\sqrt{\frac{\ln{N}}{n_i}}
+\end{equation}
+where $w_{best}$ is the best heuristic evaluation found by the child node, and $\beta$ is a constant that controls the weighting between the best child node and the average child node, which balances exploration and exploitation. This allows the algorithm to focus on the most promising future directions, while still exploring other child nodes to avoid local optima.
+
+\textbf{Expansion:}
+After reaching a leaf node, the MDRNN prediction algorithm is run to generate a GMM of possible next control inputs. This GMM is saved for the node and sampled once to generate a new child node. This child node is then added to the tree and is the starting point for the simulation process. The generated GMM will be reused for further expansion whenever progressive widening is triggered during the selection process.
+
+During progressive widening, $c$ candidate actions are randomly sampled from the GMM. For each of these candidates, we check if the action is more than $\epsilon$ away from all existing child actions. If at least one such unique action is found we add the most unique, which is the action found with the highest minimum $\epsilon$ distance from all other actions is added as a new child node. As each dimension in the action space represents a different control parameter, different $\epsilon$ values are applied to each dimension, and a candidate action must be unique in at least one of them. There is also a scaling factor applied to distance in each dimension for determining which candidate is the maximum distance away from all exising child actions. If no candidate action is found the be unique progressive widening fails and no new child node is added. This is done to ensure that the search tree does not grow without reasonable exploratory potential. If progressive widening is attempted and failed 5 times in a row, it is presumed that all potential actions with any reasonable likelihood of occuring have already been added to the search tree, and so progressive widening will be disabled for this node for the remainder of the search.
+
+\textbf{Simulation:} 
+Typically in MCTS a simulation takes place from an expanded node all the way to a terminal state using some default expansion option, and the result of that terminal state is then backpropogated. However, musical prediction and improvisation does not have a terminal state, and IMPSY will continue predicting indefinitely until the user manually exits the program. Hence, a set simulation depth constant $S_d$ is used to ensure the simulation ends, and a heuristic is then run on the final state of the simulation to be used as a value for backpropogation. The simulation expansion strategy is to use default IMPSY predictions, with repeated MDRNN predictions with a random GMM sample until the simulation depth is reached.
+
+\textbf{Backpropagation:}
+After the heuristic is run, the result is backpropogated through the tree beginning from the expanded node. The backpropagation process updates the visit count and value of each node in the path from the expanded node to the root node, as well as updating the new best heuristic value for the node if the new heuristic value is better than the previous best. These updated values are then used in the selection process, including to determine whether progressive widening should be triggered.
+
+\begin{algorithm}
+    \caption{C-MCTS Prediction Algorithm}
+    \label{alg:CMCTS}
+    \SetAlgoLined
+    \DontPrintSemicolon
+    
+    \SetKwFunction{FMCTSSearch}{MCTSSearch}
+    \SetKwFunction{FSelectAndExpand}{SelectAndExpand}
+    \SetKwFunction{FSimulate}{Simulate}
+    \SetKwFunction{FBackpropagate}{Backpropagate}
+    
+    \SetKwProg{Fn}{Function}{:}{}
+    
+    \Fn{\FMCTSSearch{memory, heuristicFunction, timeLimit}}{
+        endTime $\gets$ currentTime + timeLimit\;
+        \While{currentTime $<$ endTime}{
+            selectedNode $\gets$ \FSelectAndExpand{root}\;
+            simulationResult $\gets$ \FSimulate{selectedNode, memory, heuristicFunction}\;
+            \FBackpropagate{selectedNode, simulationResult}\;
+        }
+        \Return{mostVisitedChild(root)}\;
+    }
+    
+    \Fn{\FSelectAndExpand{node}}{
+        \tcc{Select the best child node using UCT, widening the action space where necessary}
+        current $\gets$ node\;
+        \While{current.children is not empty}{
+            ApplyProgressiveWidening(current)\;
+            current $\gets$ UCTSelectBestChild(current)\;
+        }
+        \tcc{Expand final selected node}
+        current $\gets$ ApplyProgressiveWidening(current)\;
+        \Return{current}\;
+    }
+    
+    \Fn{\FSimulate{node, memory, heuristicFunction}}{
+        current $\gets$ node\;
+        \For{$i \gets 1$ \KwTo simulationDepth}{
+            current $\gets$ SampleFromGMM(current.gmm)\;
+            current.gmm $\gets$ PredictWithMDRNN(current)\;
+        }
+        \Return{heuristicFunction(Concatenate(memory, ExtractBranch(current)))}\;
+    }
+    
+    \Fn{\FBackpropagate{node, result}}{
+        current $\gets$ node\;
+        \While{current is not null}{
+            current.visits $\gets$ current.visits + 1\;
+            current.value $\gets$ current.value + result\;
+            current $\gets$ current.parent\;
+        }
+    }
+\end{algorithm}
+
+\section{Heuristic Design}
+For the C-MCTS algorithm to be useful, it must be guided by heuristics which provide useful benefit to the output of the system. We have developed a set of structural parameters which are measured as the user plays, and then attempted to be emulated by our prediction system. To do this, our heuristic is calculated as the euclidean distance between two parameter vectors, the first of which is the value of each of the parameters at the root node, which remains constant within a single search, and the second of which is the value of each of the parameters at the end of a simulation. Each of these parameters is based on psychological and musical research which has found these elements of composition to be parameters by which humans ourselves either intuitively or through musical learning understand musical structure and coherence and predict the future direction of music. By guiding the musical prediction process toward outputs that humans have been shown to predict as more likely, we hypothesise that predictive accuracy can be improved while maintaining musical creativity and variation. They provide a representation for the current state of the piece a user is performing, providing a goal to which the system can aim to replicate.
+
+By virtue of our choice of test instrument, all but one of the parameters described here are generalisable to any instrument with a continuous pitch and time dimension. The exception is the key and modal conformity parameter, which is specific to 12TET instruments. This is added as an example of how a parameter can be added into the system to fine tune it to a specific instrument. Hypothetically, parameters could also be added to fine tune prediction toward particular styles or cultural musical norms as well.
+
+The visually explain the relevance of this heuristic guidance, we have generated an example of using the C-MCTS algorithm with a null heuristic, which will act as regular IMPSY, but show a variety of different possible futures due to the randomness inherent within IMPSY's predictions. This is shown in Figure~\ref{fig:MCTSunguided}. As this example shows, at the particular place in the piece where the prediction algorithm has been run, a long note has been played, and the system seems to consider two reasonable future directions, continuing briefly to play longer notes, and returning to shorter notes. At higher depths all branches eventually move back to shorter notes. In Figure~\ref{fig:MCTSguided}, we show the same C-MCTS prediction, but now using a very basic heuristic to guide the search, which favours the lowest standard deviation of time interval from the root node. This heuristic is not particularly useful in a practical sense, but provides a stark visual difference within the search tree, which is helpful for visualising the power of directed search. When guided toward continuing paths that maintain a similar long note duration to the root note, the entire search tree shifts towards options which continue along this path. In Figure~\ref{fig:MCTSguidedpath}, we show the most visited path of the search tree from Figure~\ref{fig:MCTSguided}. This is the path that would have been taken given the heuristic guidance, and, while remaining in the realms of potential musical directions in early depths, eventually significantly diverges in musical path from the unguided search tree. These redirections of musical path which remain subtle and entirely plausible note by note, but over a longer time period adhere to heuristic guidance, is at the core of what we are trying to achieve with this system. By guiding the search tree toward plausible musical paths, we can ensure that the system is able to maintain a coherent musical direction while still allowing for the creativity and variation afforded by MDRNN predictions.
+
 \begin{figure}[th!]
-    \includegraphics[width=9cm]{figures/Successor-function-draft.jpg}
-    \caption{The Successor Algorithm.\label{fig:Successor}}
+    \includegraphics[width=11.1cm]{figures/mcts-unguided.png}
+    \caption{C-MCTS algorithm with a null heuristic. Nodes with $>3$ visits are shown, with logarithmic size based on visit count.\label{fig:MCTSunguided}}
 \end{figure}
-
-\section{Heuristics}
-For the C-MCTS algorithm to be useful, it must be guided by heuristics which provide useful benefit to the output of the system. In the case of IMPSY, we have developed a set of structural parameters which can be used to guide the system in generating more structured and coherent improvisations. These structural heuristics are based on the principles of music theory, and are intended to help describe the current playing style of the human performer and the current state of the piece, and hence guide the system in generating more appropriate predictions which coherently follow the current state of the piece.
-
-Note here the limitation of heuristics needing to be defined independently for different instruments, with a few core exceptions such as purely timing based heuristics like tempo. This is because the same parameter can have different meanings for different instruments, eg pitch variation for a drum kit vs a guitar. And some instruments have more dimensions in their output than others, which for each instrument can control various different things. Introduce the standard we will be using for the rest of the paper, which is a 2-dimensional keyboard output: with one pitch dimension and one time dimension. The heuristics should hence be translatable to any instrument with clear continuous pitch and time dimensions to their output, but instruments with higher dimensionality would benefit from adding more, and more complex, heuristics which account for these extra dimensions.
-
-We want to put any general graphics pertaining to heuristics more generally here. We could (maybe should) actually do this in the main section for performance parameters before the subsections start, taking a super basic parameter like how close each time interval is to an exact figure. Below is a 3D tree graph visually displaying an example of continuous MCTS search with 1. no guidance (wide branching tree) 2. Addition of a tempo heuristic or other more basic heuristic (tree branches narrow and focus on a single direction matching the tempo) hand drawn example of this graph below. TODO: in writeup make this paragraph an explanation of a specific example scenario before showing that in the figure
 
 \begin{figure}[th!]
-    \includegraphics[width=9cm]{figures/MCTS-parameter-draft.jpg}
-    \caption{C-MCTS algorithm with no heuristic guidance vs time interval heuristic.\label{fig:CMCTSHeuristic}}
+    \includegraphics[width=11.1cm]{figures/mcts-guided.png}
+    \caption{The same C-MCTS prediction as Figure~\ref{fig:MCTSunguided}, but with a heuristic favouring the lowest standard deviation of time interval from the root node.\label{fig:MCTSguided}}
 \end{figure}
 
-\subsection{Setting Heuristics Through Human Performance}
-By default, for each heuristic, the system tracks both the value of the heuristic, and the rate of change of the heuristic, being its derivative with respect to time. Higher order derivatives can also be added to track more complex patterns of change in these values. In this way, the system tracks useful metrics about the the state of the piece, and then can replicate these patterns when it takes over in its improvisation.
+\begin{figure}[th!]
+    \includegraphics[width=11.1cm]{figures/mcts-guided-path.png}
+    \caption{The guided C-MCTS search from Figure~\ref{fig:MCTSguided} with the most visited path highlighted.\label{fig:MCTSguidedpath}}
+\end{figure}
 
-TODO: We could just do this with another LSTM trained on the same training data? Use LSTM to estimate values of parameters for next step, and then use these as the heuristic?
+Each of the following subsections details one of the musical parameters used in our heuristic, along with a brief justification for its importance and description of its implementation. All of the output values of these parameters are normalised to a range of 0 to 1, in order to ensure that euclidean distance is an unbiased measure of distance between the two parameter vectors. Intentional bias can be created by skewing these weights, and in some instances specific parameters are excluded from search if the users performance does not meet the criteria for that parameter to be relevant. We have a sliding window of $n$ previous remembered notes called the output memory which are often used to determine current parameter values.
 
-TODO figure
+\subsection{Pitch range, height and proximity}
+~\citep{Temperley2008MelodyPerception}
 
-\subsection{Identifying Patterns of Repetition}
-Derivatives aren't enough to capture the change of musical parameters in improvisation. Repetition and motifs are critical to musical performance, and recognising and being able to repeat them is a core component of strong improvisational coherence. TODO: we need to figure out a way to identifying repeated patterns so that this can be used to generate a 'future function' of target values for paramters. We also need to ensure we don't forget that we are in a motif. Eg we strongly need to preference continuing a motif if we have begun an identified motif.
+This paper is important as it establishes multiple musical parameters relevant to melody, focusing specifically on pitch in melody. It establishes three main relevant aspects of conformity within its dataset of melodies, these being pitch range, pitch proximity, and key profile conformity. These are used to establish the probablity of notes within a melody. We adapt these parameters to our own model of note prediction.
 
-TODO figure
+Pitch range is a gaussian calculated as the standard deviation of pitch within a melody from the 'mean note' of a melody. This melody is the output memory in our calculations.
 
-\subsection{Utilising Heuristics for Prediction}
-When the system takes over from a human performer in an improvisation, it forecasts the future values of each structural parameter based on 1. the current value of the parameter, 2. derivatives of the parameter, and 3. identified repeating pattern of the parameter. A heuristic can then be created from the forecasted values, where the heuristic value at a given node is its euclidean distance from the forecasted value vector at that point in time. The length of memory used to generate the values of the parameters must at minimum be the depth of the search tree at the point of the evaluated node.
+It is important to note the relevance of this mean note as another parameter implicitly included, pitch height:
+From paper: HOW MUSIC MOVES: Musical Parameters and Listeners’ Images of Motion
+Section: Mapping Music Into Space and Motion: Specific Parameters
+Talks a lot about pitch height and refers to multiple studies noting it's relevance.
 
-TODO figure
+Pitch proximity is the standard deviation of each notes pitch from its predecessor, once again over the output memory.
 
-\section{Performance Parameters}
-Hence, to generate heuristics, we require a set of parameters to track in human performance and attempt to replicate the patterns of. I will now list each of the parameters used in my implementation for testing, and how they are evaluated. However, this part of the system can and should be flexible. While I have attempted to define a set of parameters that act rather generally and so are broadly applicable to the context of increasing musical coherence so as not to require that a user be proficient in coding, the specific choice and implemenation of these parameters can be changed to suit the needs of the user, and would likely yield better results if fine-tuned to match specific goals of a performance. 
+\subsection{Key and modal conformity}
+~\citep{Temperley2008MelodyPerception}
 
-\subsection{Tempo Parameter}
-TODO: a tempo parameter which tracks BPM, and excludes subdivisions, eg notes approx in orders of magnitude of 2 from the BPM (or even triplets and other stuff? Test this.). Put the implementation here
+NOTE how this is SPECIFIC to 12TET, this is an example of a specific heuristic matched to the instrument, whereas other paramaters used are generalisable to any instrument which includes a pitch dimension.
 
-\subsection{EACH OF THE OTHER PARAMETERS GOES IN A SUBSECTION HERE}
-Maybe use rhythmic stability?~\citep{Desain2002RhythmicStability}
-Look into temporal regularity~\citep{Large2002TemporalRegularity}
+We slightly adapt the key profiles methodology from the above paper in our own model. TODOcites model of key profiles recognises two key facts about melodies which conform to a particular key. Firstly that notes within that key are significantly more likely to be used than those outside of it, and secondly that notes of the tonic triad, the root, third, and fifth of the scale, are slightly more likely to be used than other notes within the key. However, the likelihoods of each note are combined into a single key profile in this paper, which only accounts for natural major and minor scales, showing the increased use of the sharp sixth and seventh degrees in minor scales as small increases in usage within a natural minor key profile, instead of recognising the distinction of melodic and harmonic minor scales, and completely ignoring the use of other modes.
 
-\section{Human Interaction}
-TODO: It would be really good as part of the project to include more human interaction, eg allow a human to modify parameters during the AI improvisation through a UI, and even to train new parameters so that implementing new ones doesn't require code (a little UI system for which parameters to use and how to create new ones?). This is however a stretch goal for the project, and not necessary for the core functionality. If these subsections don't end up being completed, add them into future work.
+Our model instead accounts for both of these factors by splitting the key profile into two parameters. The first is key conformity, which doesn't account for a root note, and instead is only a grouping of particular notes present in that scale. We include each of the major, pentatonic, harmonic minor, melodic minor, blues, double harmonic minor, flamenco, enigmatic, bebop, freygish, and persian scales, although more could easily added if desired without loss of heuristic performance or quality. Each 12 versions of these scales are added, and they are assessed based on how much they overperform random chance. If a scale has $n$ notes out of 12 possible in an octave, and yet the fraction of notes in output memory that are from that scale is $k$, then the likelihood of the scale can be calculates as $\frac{12k-n}{12-n}$, representing the proportion of the notes the scale wouldn't have been expected to capture by random chance that it did actually capture. This will lead to scores that are on avergae 0 for scales with no correlation to the melody, scores of 1 for scales that perfectly match the melody (in which case larger $n$ is used as a tiebreaker), and negative scores for scales with negative correlation. If any key has a score >= $0.75$ then it is considered a match and the key with the highest score is set for the heuristic. If all keys have scores < 0.75, then the key and modal conformity heuristic are not used.
 
-\subsection{Performance Parameter User Interface}
-TODO
+The second parameter is modal conformity, and is only used if a key is chosen. If within that key, the tonic triad likelihood is calculated as $\frac{nk_t-3}{n-3}$ where $k_t$ is portion of notes from the output memory in the scale, that are also in the tonic triad of that scale. Tonic probabilities are calculated for each possible root note, and if any option has a score >= $0.25$ then it is considered a match and the root note with the highest score is set for the heuristic. If all keys have scores < 0.25, then there is considered to be no clear mode, and only the key conformity heuristic is used.
 
-\section{Training New Performance Parameters}
-TODO
+\subsection{Tempo, Swing, and Time Signature}
+~\cite{Laroche2001TempoEstimation}
+Get all durations in the output memory. Then brute force different tempos in a range from 80bpm to 158bpm in increments of 2bpm (going more than double is unnecessary as it will count as half time/double time), and each testing no swing, triplet swing, and golden ratio swing. and measure how well the durations fit to the tempo, the tempo with the highest likelihood of matching to the tempo pdf is chosen as the tempo, as long as it is over a threshold of (TODO work this out from some testing) as under this it has been tested to be unreliable. Instead of testing each with a set downbeat from the beginning, the test is run first with no strong or weak beats. After a tempo is found, the test is run again for beat strength. Each beat is tested, and bar lengths of 3,4,5, and 7 are tested to somewhat immitate the time signature. It would be ideal to use loudness for beat strength, but this is not available in our current implementation. Instead, the beat strength is calculated by the likelihood of a note falling on that beat. If this is over a threshold of (TODO: test) then this time signature metric is included in the heuristic.
+
+\subsection{Consonance}
+~\cite{Ahlback2004MelodyCognition}
+Melody Beyond Notes A Study of Melody Cognition - notes that consonance is relevant, and opposed to chromatic movement. Implicit harmony can be encoded in melody through consonant interval movement, and so the recent favouring of consonant intervals over dissonant ones can be used as a parameter somewhat representing whether the melody is acting as implict harmony or pure melody.
+Look at roughness equations from previous work with charles ~\cite{Vassilakis2001Roughness}
+
+\subsection{Pitch Contour Markov Model}
+~\citep{Dowling1971Contour}
+^^ paper talks about the relevance
+
+\subsection{Repetition Markov Model}
+~\citep{Duane2016Repetition} - level of repetition changes per phrase so important to track (justifies using markov models)
+Can help where repetition is required, eg repeating the same phrase or motif. Only takes into account high probability note changes with multiple instances. Maybe don't need a markov model? Count all time where there are multiple cases of a 2D note change (eg C quarter note followed by E quater note ALWAYS goes to G half note in recent history) and increase heuristic when true.
+
+\subsection{Potential Heuristics for Other Control Dimensions}
+Many other instruments will have varying control dimensions, each of which could come with their own set of heuristics. For example, loudness controls could lead to algorithms which perceive strong and weak beats, leading to potential for more complex heuristics such as time signatures. Timbre related controls could lead to mood related heuristics being more accurate and hence relevant. These are just a few examples of the many potential heuristics that could be developed for other control dimensions, and we encourage future work to explore these possibilities. However, as a proof of concept for this system, using a simple 2D monophonic keyboard model is sufficient to demonstrate the potential of this system without overcomplicating the implementation and evaluation. We will discuss ideas on generalising the system more in the future work section.
+
+\section{Experimental Setup}
+
+\subsection{Tuning our Prediction Algorithm Constants}
+
+\subsection{Retuning the MDRNN Constants}
+2. Comparisons of exploration and exploitation, by looking at probability of chosen node vs average probability of any node randomly chosen in the MDN distribution. If the chosen node probability is usually higher than average, shink how wide the MDN is as the current one is too explorative, if it is usually lower, increase the width of the MDN as the current one is too exploitative. Compare against the perceived optimal from Charles' study when only choosing randomly, I hypothesise that if the guidance of MCTS search is strong, it should learn toward wider distributions being optimal than are optimal with random selection.
+
+
+
 
 

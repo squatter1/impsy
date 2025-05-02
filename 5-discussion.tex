@@ -1,0 +1,48 @@
+\chapter{Discussion}\label{chap:discussion}
+
+\section{Limitations}
+TODO: simulation in MCTS is slow because of using the full RNN for predictions, typically MCTS will use a simpler calculation for simulation than it does for expansion to reach an end state, this could be tried?
+\section{Future Work}
+
+TODO moved from system design:
+Setting Heuristics Through Human Performance
+By default, for each heuristic, the system tracks both the value of the heuristic, and the rate of change of the heuristic, being its derivative with respect to time. Higher order derivatives can also be added to track more complex patterns of change in these values. In this way, the system tracks useful metrics about the the state of the piece, and then can replicate these patterns when it takes over in its improvisation.
+
+TODO: Moved from experiments to future work due to static parameter values:
+1. How close does the MCTS search get to the 'perfect heuristic' eg completely matching the exact value of all parameters based on where they were for the user and how they were moving over time. This is a measure of how well the system is able to learn the user's preferences and how well it is able to predict the user's future preferences. Use this to generate hyperparameters for the MCTS search and other algorithm elements that are optimal (do we want tuning these parameters to be in a completely different section before the evaluation instead?). Eg show how this changes with 
+ - the number of iterations in the MCTS search (node expansions)
+ - the depth of the MCTS search, including adaptive depth options and comparing them
+ - the exploitation vs exploration parameters in the MCTS search
+ - how continuous MCTS is implemented, eg how 'far away' a successor needs to be to be considered a new node
+We also want to show metrics for each of the parameters, and individually how well they alone can be tracked and predicted.
+
+TODO: variable simulation depth based on how promising the path is?
+
+TODO: markov models and trying to get long term repetition, eg chorus repetition, to work. Could use markov models. Remove this from previous sections as its probably too much to get done for now.
+
+TODO: if there is time, instead of using previous measurements from human performance and maintaining them, an additional RNN could be used to continuously predict the next state of the set of musical parameters.
+
+What about back and forth or simultaneous interaction? Based on the use of similar techniques in robot path planning environments, it seems like planning the future of a piece by using MDNs to predict the actions of collaborators, while intersecting with own actions through search trees, could be a promising approach.
+
+- Future work section -> Multi stage disatnce function (eg for time interval, start with a harsh cutoff (uniqueness) for first section of search, then in the later section move to exploitation (pick optimal value, search local neighbourhood using KR-AUCB and baysien optimisation to find best time interval) 
+
+Put KR-AUCB in here if not implemented by end, and baysian optimisation if decided its necessary (likely isn't except for many more dimensions, mention that here for sure)
+
+TODO: We will discuss ideas on generalising the system more in the future work section.
+
+For setting paprameters via performance:
+TODO: We could just do this with another LSTM trained on the same training data? Use LSTM to estimate values of parameters for next step, and then use these as the heuristic?
+
+TODO: Identifying Patterns of Repetition
+mention derivatives as well: Derivatives aren't enough to capture the change of musical parameters in improvisation. Repetition and motifs are critical to musical performance, and recognising and being able to repeat them is a core component of strong improvisational coherence. TODO: we need to figure out a way to identifying repeated patterns so that this can be used to generate a 'future function' of target values for paramters. We also need to ensure we don't forget that we are in a motif. Eg we strongly need to preference continuing a motif if we have begun an identified motif.
+
+TODO: These human interaction ideas are all future work.
+\section{Human Interaction}
+TODO: It would be really good as part of the project to include more human interaction, eg allow a human to modify parameters during the AI improvisation through a UI, and even to train new parameters so that implementing new ones doesn't require code (a little UI system for which parameters to use and how to create new ones?). This is however a stretch goal for the project, and not necessary for the core functionality. If these subsections don't end up being completed, add them into future work.
+
+\subsection{Performance Parameter User Interface}
+TODO
+
+\section{Training New Performance Parameters}
+TODO
+
