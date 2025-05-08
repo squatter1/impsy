@@ -57,6 +57,7 @@ cover/
 
 # Django stuff:
 *.log
+!eval_logs/*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -168,6 +169,7 @@ datasets
 *.hdf5
 *.no
 *.npz
+!eval_datasets/*.npz
 *.csv
 
 experiment_data

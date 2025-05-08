@@ -434,7 +434,7 @@ class MCTSPredictionTree:
         
         # Concatenate the simulated outputs with the original branch
         simulated_branch = np.concatenate([self._extract_branch(selected_node), np.array(simulation_outputs)])
-        if self.verbose or True:
+        if self.verbose:
             print("Simulated branch: ", simulated_branch)
 
         # Calculate heuristic value for the simulated branch
@@ -442,12 +442,12 @@ class MCTSPredictionTree:
         for heuristic_function in heuristic_functions:
             # Get the heuristic value for this function
             function_value = heuristic_function(memory, simulated_branch)
-            if self.verbose or True:
+            if self.verbose:
                 print(f"Calculating heuristic value for function: {heuristic_function.__name__}")
                 print(f"Result: {function_value}")
             heuristic_value += function_value
         
-        if self.verbose or True:
+        if self.verbose:
             print(f"Total heuristic value: {heuristic_value}")
         return -heuristic_value
     

@@ -38,7 +38,6 @@ class Scale:
         in_scale = np.isin(branch, self.notes)
         k = np.sum(in_scale) / len(branch)
         # Adjust conformity value based on the number of notes in the scale conformity = (12k-n)/(12-n)
-        #print(f"Root: {root}, k: {k}, n: {self.n}, conformity: {(12 * k - self.n) / (12 - self.n)}")
         return (12 * k - self.n) / (12 - self.n)
 
     def conformity(self, branch: np.ndarray) -> float:
@@ -74,7 +73,6 @@ class Scale:
         # Calculate the portion of notes in the scale that are also in the root triad as k_t
         k_t = np.sum(in_root_triad) / np.sum(in_scale)
         # Adjust conformity value based on the number of notes in the scale = (n*k_t-3)/(n-3)
-        #print(f"Root: {root}, k_t: {k_t}, n: {self.n}, conformity: {(self.n * k_t - 3) / (self.n - 3)}")
         return (self.n * k_t - 3) / (self.n - 3)
     
     def mode_conformity_all(self, branch: np.ndarray, root: int) -> float:
@@ -126,48 +124,24 @@ def key_and_modal_conformity_heuristic(memory: np.ndarray, branch: np.ndarray, m
     memory = np.round(memory[:, 1]*100).astype(int)
     branch = np.round(branch[:, 1]*100).astype(int)
     # Calculate key conformity for memory
-    #print()
-    #print("Calculating memory conformity")
     memory_conformity, memory_scale, memory_root = key_conformity(memory, min_key_conformity)
     if memory_scale is None:
         # Chromatic scale, don't use key conformity as a heuristic
-        #print("Memory scale is None")
         return 0
-    #print()
-    #print("Memory: ", memory)
-    #print("Memory conformity: ", memory_conformity)
-    #print("Memory scale: ", memory_scale)
-    #print("Memory root: ", memory_root)
-    # (memory + memory_root) % 12 for each note in the memory
-    #print("Memory in scale: ", (memory + memory_root) % 12)
-    #print()
     
     # Calculate conformity of the branch to the memory scale
-    #print("Calculating branch conformity")
     branch_conformity = memory_scale.root_conformity(branch, memory_root)
-    #print("Branch: ", branch)
-    #print("Branch conformity: ", branch_conformity)
-    #print("Branch in scale: ", (branch + memory_root) % 12)
-    #print()
 
     # Calculate modal conformity
-    #print("Calculating memory mode conformity")
     memory_mode_conformity, memory_mode = memory_scale.mode_conformity_all(memory, memory_root)
     if memory_mode_conformity < min_mode_conformity:
         # Not enough memory to establish a mode
-        #print("Memory mode conformity is less than min mode conformity")
         return abs(branch_conformity - memory_conformity) / 2
-    #print("Memory mode conformity: ", memory_mode_conformity)
-    #print("Memory mode: ", memory_mode)
 
     # Calculate conformity of the branch to the memory mode
-    #print("Calculating branch mode conformity")
     branch_mode_conformity = memory_scale.mode_conformity(branch, memory_root, memory_mode)
-    #print("Branch mode conformity: ", branch_mode_conformity)
-    #print("Branch mode: ", memory_mode)
 
     # Return the difference between the branch conformity and the memory conformity for key and mode
-    #print("Difference: ", abs(branch_conformity - memory_conformity))
     return (abs(branch_conformity - memory_conformity) + abs(branch_mode_conformity - memory_mode_conformity)) / 2
 
 
