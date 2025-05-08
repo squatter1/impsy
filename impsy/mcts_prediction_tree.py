@@ -20,6 +20,7 @@ class MCTSNode:
         # MCTS specific attributes
         self.visits = 0
         self.value = 0.0
+        self.best_value = 0.0  # Best found heuristic value of any path from this node
         self.failed_progressive_widening = 0  # Count of failed progressive widening attempts, too many leads to assumption all valid unique children have been added
 
     def delete_children(self, exception: Optional['MCTSNode'] = None) -> None:
@@ -34,15 +35,15 @@ class MCTSNode:
         self.children.append(child)
         return child
     
-    def uct_child(self, exploration_weight: float, verbose: bool = False) -> Optional['MCTSNode']:
+    def uct_child(self, greedy_weight: float, exploration_weight: float, verbose: bool = False) -> Optional['MCTSNode']:
         """
         Select the best child according to UCT formula:
-        UCT = value/visits + exploration_weight * sqrt(2 * ln(parent_visits) / visits)
+        UCT = greedy_weight*best_value + (1-greedy_weight)*value/visits + exploration_weight * sqrt(2 * ln(parent_visits) / visits)
         """
         uct_values = []
         for child in self.children:
             # Exploitation term
-            exploitation = child.value / child.visits if child.visits > 0 else 0
+            exploitation = greedy_weight * child.best_value + (1 - greedy_weight) * child.value / child.visits if child.visits > 0 else 0
             
             # Exploration term
             exploration = exploration_weight * math.sqrt(math.log(self.visits) / child.visits) if child.visits > 0 else float('inf')
@@ -79,6 +80,7 @@ class MCTSPredictionTree:
                  predict_function: Callable, 
                  sample_function: Callable,
                  simulation_depth: int = 2, 
+                 greedy_weight: float = 0.5,
                  exploration_weight: float = 1.0,
                  progressive_widening_k: float = 1.0,
                  progressive_widening_alpha: float = 0.5,
@@ -97,6 +99,7 @@ class MCTSPredictionTree:
         self.predict_function = predict_function
         self.sample_function = sample_function
         self.simulation_depth = simulation_depth
+        self.greedy_weight = greedy_weight
         self.exploration_weight = exploration_weight
         self.progressive_widening_k = progressive_widening_k
         self.progressive_widening_alpha = progressive_widening_alpha
@@ -127,19 +130,22 @@ class MCTSPredictionTree:
     
     def search(self, 
                memory: List[np.ndarray], 
-               heuristic_function: Callable,
+               heuristic_functions: List[Callable],
                time_limit_ms: int = 1000) -> Tuple[np.ndarray, List, float]:
         """
         Run MCTS for the given time limit and return the best branch found
         
         Args:
             memory: Initial sequence of notes prior to root node
-            heuristic_function: Function to evaluate a branch
+            heuristic_functions: Functions to evaluate a branch
             time_limit_ms: Time limit in milliseconds
             
         Returns:
             Tuple of (best_child, lstm states)
         """
+        # Convert memory to numpy array if not already
+        if isinstance(memory, list):
+            memory = np.array(memory)
         # Apply snapping to the memory if enabled
         for i in range(len(memory)):
             memory[i] = np.array(memory[i])
@@ -168,7 +174,7 @@ class MCTSPredictionTree:
             # Simulation
             if self.verbose:
                 print("Simulating")
-            simulation_result = self._simulate(selected_node, memory, heuristic_function)
+            simulation_result = self._simulate(selected_node, memory, heuristic_functions)
             if self.verbose:
                 print(f"Simulation result: {simulation_result}")
             
@@ -377,9 +383,8 @@ class MCTSPredictionTree:
             if self.selection_method == 'uct':
                 if self.verbose:
                     print("Selecting best child with UCT")
-                current = current.uct_child(self.exploration_weight, verbose=self.verbose)
+                current = current.uct_child(self.greedy_weight, self.exploration_weight, verbose=self.verbose)
             elif self.selection_method == 'kr_aucb':
-                current.uct_child(self.exploration_weight, verbose=self.verbose) # TODO delete
                 # Use KR-AUCB selection method
                 if self.verbose:
                     print("Selecting best child with KR-AUCB")
@@ -400,7 +405,7 @@ class MCTSPredictionTree:
         
         return current
     
-    def _simulate(self, selected_node: MCTSNode, memory: List[np.ndarray], heuristic_function: Callable) -> float:
+    def _simulate(self, selected_node: MCTSNode, memory: List[np.ndarray], heuristic_functions: List[Callable]) -> float:
         """
         Run a simulation from the given node to estimate its value
         """
@@ -429,13 +434,22 @@ class MCTSPredictionTree:
         
         # Concatenate the simulated outputs with the original branch
         simulated_branch = np.concatenate([self._extract_branch(selected_node), np.array(simulation_outputs)])
-        if len(memory) > 0:
-            simulated_branch = np.concatenate([memory, simulated_branch])
-        if self.verbose:
+        if self.verbose or True:
             print("Simulated branch: ", simulated_branch)
 
-        # Evaluate the simulated branch using the heuristic function
-        return heuristic_function(simulated_branch)
+        # Calculate heuristic value for the simulated branch
+        heuristic_value = 0.0
+        for heuristic_function in heuristic_functions:
+            # Get the heuristic value for this function
+            function_value = heuristic_function(memory, simulated_branch)
+            if self.verbose or True:
+                print(f"Calculating heuristic value for function: {heuristic_function.__name__}")
+                print(f"Result: {function_value}")
+            heuristic_value += function_value
+        
+        if self.verbose or True:
+            print(f"Total heuristic value: {heuristic_value}")
+        return -heuristic_value
     
     def _backpropagate(self, node: MCTSNode, result: float) -> None:
         """Update node statistics going up the tree"""
@@ -443,8 +457,10 @@ class MCTSPredictionTree:
         while current:
             current.visits += 1
             current.value += result
+            if result > current.best_value:
+                current.best_value = result
             if self.verbose:
-                print(f"Backpropagating: {current.output}, Visits: {current.visits}, Value: {current.value}, Average: {current.value / current.visits}")
+                print(f"Backpropagating: {current.output}, Visits: {current.visits}, Value: {current.value}, Average: {current.value / current.visits}, Best: {current.best_value}")
             current = current.parent
     
     def _extract_branch(self, node: MCTSNode) -> Tuple[np.ndarray, List]:
@@ -478,59 +494,71 @@ class MCTSPredictionTree:
         branch = self._extract_branch(current)
         return branch
     
-    def graph_tree(self, ax=None, title="Monte Carlo Tree Search Visualization", has_winning_branch=True) -> Tuple:
+    
+    def graph_tree(self, ax=None, title="Monte Carlo Tree Search Visualization", has_winning_branch=True, zoomed=False, min_visits=3) -> Tuple:
         """
         Visualize the MCTS tree in 3D.
         
         Args:
             ax: Optional matplotlib 3D axis. If None, a new figure and axis will be created.
-            title: Title for the plot.
+            title: Title for the plot. Ignored if zoomed=True.
+            has_winning_branch: Whether to highlight the winning branch.
+            zoomed: When True, optimizes the visualization for a zoomed view (no title, 
+                   legend inside graph, maximized graph space, larger text, and larger nodes).
             
         Returns:
             The matplotlib figure and axis.
         """
-        import matplotlib.pyplot as plt
-        from mpl_toolkits.mplot3d import Axes3D
         import numpy as np
+        import matplotlib.pyplot as plt
         
         # Create figure and 3D axis if not provided
         if ax is None:
-            fig = plt.figure(figsize=(12, 10))
+            fig = plt.figure(figsize=(99.13386, 55.31496))
+
             ax = fig.add_subplot(111, projection='3d')
-        else:
-            fig = ax.figure
+            ax.set_box_aspect(aspect = (2,1,1))
+            #ax = fig.add_axes([0.05, 0.05, 0.95, 0.95], projection='3d')
         
-        # Set labels and title
-        ax.set_xlabel('Time Interval (ms)')
-        ax.set_ylabel('Pitch (Hz)')
-        ax.set_zlabel('Tree Depth')
-        ax.set_title(title)
+        # Set labels and title (with larger text if zoomed)
+        fontsize = 27.5 if zoomed else 10
+        labelpad = 20 if zoomed else 0
+        ax.set_xlabel('Time Interval (ms)', fontsize=fontsize, labelpad=(labelpad+5))
+        ax.set_ylabel('Pitch (Hz)', fontsize=fontsize, labelpad=labelpad)
+        ax.set_zlabel('Tree Depth', fontsize=fontsize, labelpad=(labelpad-5))
+        
+        # Only set title if not zoomed
+        if not zoomed:
+            ax.set_title(title)
         
         # Extract winning branch for highlighting
         if has_winning_branch:
             winning_branch = self.get_best_branch()
             print(f"Winning branch: {winning_branch}")
-            # Print the heuristic value of the winning branch
-            import impsy.heuristics as heuristics
-            heuristic_value = heuristics.rhythmic_consistency_to_value(winning_branch, value=winning_branch[0][0], verbose=True)
-            print(f"Heuristic value of winning branch: {heuristic_value}")
+            ## Print the heuristic value of the winning branch
+            #import impsy.heuristics as heuristics
+            #heuristic_value = heuristics.rhythmic_consistency_to_value(winning_branch, value=winning_branch[0][0], verbose=True)
+            #print(f"Heuristic value of winning branch: {heuristic_value}")
         else:
             winning_branch = None
         
         # Recursively plot nodes and edges
-        def plot_node(node, depth=0, parent_pos=None):
+        def plot_node(node, depth=0, parent_pos=None, min_visits=3):
             if node is None:
                 return
             
-            # If this node has less than 5 visits and is not at the root, skip it
-            if node.visits < 3 and depth > 0:
+            # Show nodes with at least 3 visits
+            min_visits = 3
+            
+            # If this node has less than min_visits and is not at the root, skip it
+            if node.visits < min_visits and depth > 0:
                 return
             
-            # Skip root nodes that don't have music output data
-            if depth < 2 and (node.output is None or len(node.output) < 2):
-                for child in node.children:
-                    plot_node(child, depth + 1)
-                return
+            ## Skip root nodes that don't have music output data
+            #if depth < 2 and (node.output is None or len(node.output) < 2):
+            #    for child in node.children:
+            #        plot_node(child, depth + 1, min_visits=min_visits)
+            #    return
                     
             # Extract x (time) and y (pitch) from node output
             # Ensure we have at least 2 elements
@@ -554,7 +582,9 @@ class MCTSPredictionTree:
             # Plot node
             if node.visits > 0:  # Only plot nodes that have been visited
                 # Normalize size (min size 20, max size 200)
-                node_size = -80 + 65 * math.pow(node.visits + 2, 0.25)
+                # Double the node size if zoomed
+                size_multiplier = 2 if zoomed else 1
+                node_size = size_multiplier * (-80 + 65 * math.pow(node.visits + 2, 0.25))
                 
                 # Color based on whether it's part of the winning branch
                 node_color = 'yellow' if is_winning else 'skyblue'
@@ -577,6 +607,9 @@ class MCTSPredictionTree:
                 if parent_pos is not None:
                     # Normalize edge width
                     edge_width = -8 + 6.5 * math.pow(node.visits + 2, 0.25)
+                    # Make edges thicker if zoomed
+                    if zoomed:
+                        edge_width *= 1.5
                     
                     # Line coordinates
                     xs = [parent_pos[0], x]
@@ -599,22 +632,27 @@ class MCTSPredictionTree:
             
             # Recursively plot children
             for child in node.children:
-                plot_node(child, depth + 1, pos)
+                plot_node(child, depth + 1, pos, min_visits=min_visits)
         
         # Start plotting from root
-        plot_node(self.root)
+        plot_node(self.root, min_visits=min_visits)
         
         # Add legend
         from matplotlib.lines import Line2D
         
+        markersize = 30 if zoomed else 10
+        lw = 8 if zoomed else 2
         legend_elements = [
-            Line2D([0], [0], marker='o', color='w', markerfacecolor='yellow', markeredgecolor='black', label='Chosen Node', markersize=10),
-            Line2D([0], [0], marker='o', color='w', markerfacecolor='skyblue', markeredgecolor='black', label='Explored Node', markersize=10),
-            Line2D([0], [0], color='gold', lw=2, label='Chosen Path'),
-            Line2D([0], [0], color='gray', lw=2, label='Explored Path')
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='yellow', markeredgecolor='black', label='Chosen Node', markersize=markersize),
+            Line2D([0], [0], marker='o', color='w', markerfacecolor='skyblue', markeredgecolor='black', label='Explored Node', markersize=markersize),
+            Line2D([0], [0], color='gold', lw=lw, label='Chosen Path'),
+            Line2D([0], [0], color='gray', lw=lw, label='Explored Path')
         ]
         
-        ax.legend(handles=legend_elements, loc='upper right')
+        # Set legend
+        if not zoomed:
+            legend_loc = 'upper right'
+            ax.legend(handles=legend_elements, loc=legend_loc, fontsize=fontsize)
         
         # Enable grid
         ax.grid(True)
@@ -627,13 +665,31 @@ class MCTSPredictionTree:
         ax.set_zticks(range(0, int(z_max) + 1))
         ax.invert_zaxis()  # Makes depth 0 at the top
 
-        # Adjust x axis ticks to be in intervals of 200ms from 0 to 1200
-        x_ticks = np.arange(0, 1201, 200)
+        # Adjust x axis ticks intervals
+        if zoomed:
+            # Set x axis ticks to be in intervals of 300ms from 0 to 1200
+            x_ticks = np.arange(0, 1201, 300)
+        else:
+            # Set x axis ticks to be in intervals of 200ms from 0 to 1200
+            x_ticks = np.arange(0, 1201, 200)
         ax.set_xticks(x_ticks)
+        ax.tick_params(axis='x', labelsize=fontsize)
 
-        # Adjust y axis ticks to be in intervals of 100Hz from 200 to 800
-        y_ticks = np.arange(200, 801, 100)
+        # Adjust y axis ticks intervals
+        if zoomed:
+            # Set y axis ticks to be in intervals of 300Hz from 200 to 800
+            y_ticks = np.arange(200, 801, 300)
+        else:
+            # Set y axis ticks to be in intervals of 100Hz from 200 to 800
+            y_ticks = np.arange(200, 801, 100)
         ax.set_yticks(y_ticks)
+        ax.tick_params(axis='y', labelsize=fontsize)
+        ax.tick_params(axis='z', labelsize=fontsize)
         
+        # Make the graph take up the entire figure space if zoomed
         plt.tight_layout()
-        return fig, ax
+        #if zoomed:
+        #    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        #    ax.set_box_aspect([1, 1, 1])
+            
+        return
