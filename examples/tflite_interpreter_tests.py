@@ -13,7 +13,7 @@ import click
 np.set_printoptions(precision=2)
 
 MODEL = Path("models") / "musicMDRNN-dim9-layers2-units64-mixtures5-scale10.tflite"
-SCALE_FACTOR = 10  # scales input and output from the model. Should be the same between training and inference.
+SCALE_FACTOR = 12  # scales input and output from the model. Should be the same between training and inference.
 
 # Load the TFLite model
 interpreter = tf.lite.Interpreter(model_path=str(MODEL))
