@@ -11,7 +11,13 @@ class MCTSNode:
             if snap_dp[i] is not None:
                 # Round to the snapped number of decimal places
                 # This is for semitone snapping pitch instruments and other non-continuous cases
+                # If i is 1, aka pitch, convert to semitones first
+                if i == 1:
+                    self.output[i] *= 1.27
                 self.output[i] = np.round(self.output[i], snap_dp[i])
+                # If i is 1, aka pitch, convert back
+                if i == 1:
+                    self.output[i] /= 1.27
         self.parent = parent
         self.lstm_states = lstm_states
         self.gmm = None
@@ -71,7 +77,6 @@ class MCTSNode:
     def get_all_visits(self) -> List[int]:
         """Get all visit counts for actions tried from this node (for kernel density)"""
         return [child.visits for child in self.children] 
-
 
 class MCTSPredictionTree:
     def __init__(self, 
@@ -151,7 +156,13 @@ class MCTSPredictionTree:
             memory[i] = np.array(memory[i])
             for j in range(len(memory[i])):
                 if self.snap_dp[j] is not None:
+                    # If j is 1, aka pitch, convert to semitones first
+                    if j == 1:
+                        memory[i][j] *= 1.27
                     memory[i][j] = np.round(memory[i][j], self.snap_dp[j])
+                    # If j is 1, aka pitch, convert back
+                    if j == 1:
+                        memory[i][j] /= 1.27
         if self.verbose:
             print("Starting MCTS search with memory: ", memory)
         # Reset statistics
@@ -243,7 +254,13 @@ class MCTSPredictionTree:
                 # Perform snapping if enabled
                 for i in range(len(new_action)):
                     if self.snap_dp[i] is not None:
+                        # If i is 1, aka pitch, convert to semitones first
+                        if i == 1:
+                            new_action[i] *= 1.27
                         new_action[i] = np.round(new_action[i], self.snap_dp[i])
+                        # If i is 1, aka pitch, convert back
+                        if i == 1:
+                            new_action[i] /= 1.27
                 
                 # Check if the action is original enough in at least one dimension
                 is_original = True

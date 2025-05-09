@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Callable
+from typing import Callable, Tuple
 
 #######################################
 # FINAL HEURISTIC PARAMETER FUNCTIONS #
@@ -54,6 +54,9 @@ class Scale:
         # Calculate the branch notes in the scale
         branch = (branch + root) % 12
         in_scale = np.isin(branch, self.notes)
+        if in_scale.sum() == 0:
+            # No notes in the scale, return 0
+            return 0
         root_triad = None
         # Check for major triad
         if np.isin(np.array([0, 4, 7]) + mode, self.notes).all():
@@ -121,8 +124,8 @@ def key_and_modal_conformity_heuristic(memory: np.ndarray, branch: np.ndarray, m
     if len(memory) < 10:
         # Not enough memory to establish a key
         return 0
-    memory = np.round(memory[:, 1]*100).astype(int)
-    branch = np.round(branch[:, 1]*100).astype(int)
+    memory = np.round(memory[:, 1]*127).astype(int) # *127 converts to 12 note scale
+    branch = np.round(branch[:, 1]*127).astype(int) # *127 converts to 12 note scale
     # Calculate key conformity for memory
     memory_conformity, memory_scale, memory_root = key_conformity(memory, min_key_conformity)
     if memory_scale is None:
@@ -144,7 +147,188 @@ def key_and_modal_conformity_heuristic(memory: np.ndarray, branch: np.ndarray, m
     # Return the difference between the branch conformity and the memory conformity for key and mode
     return (abs(branch_conformity - memory_conformity) + abs(branch_mode_conformity - memory_mode_conformity)) / 2
 
+def estimate_tempo_and_swing(durations: np.ndarray, 
+                             tempo_range: Tuple[int, int] = (80, 158), 
+                             tempo_step: int = 2) -> Tuple[float, str, float]:
+    """
+    Estimate the tempo and swing ratio from a sequence of durations.
+    Returns the most likely tempo (bpm), swing type, and confidence score.
+    """
+    # Convert durations to seconds (assuming they're in seconds already)
+    durations = durations.flatten()
+    
+    best_score = -float('inf')
+    best_tempo = 0
+    best_swing = "none"
+    
+    # Test different tempos and swing values
+    tempos = range(tempo_range[0], tempo_range[1]+1, tempo_step)
+    # Swing options: none, triplet (2:1), golden ratio (1.618:1) (unused)
+    swing_options = {
+        "none": 1.0,
+        "triplet": 2.0
+    }
+    
+    for tempo in tempos:
+        beat_duration = 60 / tempo  # Duration of one quarter note in seconds
+        
+        for swing_name, swing_ratio in swing_options.items():
+            score = 0
+            
+            # Expected durations in this tempo/swing combination
+            # Common note durations: whole, half, quarter, 8th, 16th notes and their dotted variants
+            expected_durations = []
+            
+            # Regular note durations
+            expected_durations.append(beat_duration * 4)  # Whole note
+            expected_durations.append(beat_duration * 2)  # Half note
+            expected_durations.append(beat_duration)      # Quarter note
+            
+            # Eighth notes (with swing)
+            if swing_name == "none":
+                expected_durations.append(beat_duration / 2)  # Eighth note
+                expected_durations.append(beat_duration / 4)  # Sixteenth note
+            else:
+                # First eighth note in a pair (longer in swing)
+                expected_durations.append(beat_duration * swing_ratio / (1 + swing_ratio))
+                # Second eighth note in a pair (shorter in swing)
+                expected_durations.append(beat_duration / (1 + swing_ratio))
+            
+            # Add dotted variants
+            dotted_durations = [d * 1.5 for d in expected_durations]
+            expected_durations.extend(dotted_durations)
+            
+            # Calculate score based on how well durations match expected durations
+            for duration in durations:
+                # Find closest expected duration
+                score -= min(expected_durations, key=lambda x: abs(x - duration) / duration)
+            
+            # Normalize score by number of notes
+            score /= len(durations)
 
+            # Normalise by expected duration density
+            score *= beat_duration
+            
+            if score > best_score:
+                best_score = score
+                best_tempo = tempo
+                best_swing = swing_name
+    
+    return best_tempo, best_swing, best_score
+
+def detect_time_signature(onsets: np.ndarray, tempo: float) -> Tuple[int, float]:
+    """
+    Detect the time signature based on note onsets and the estimated tempo.
+    Returns the most likely beats per bar and confidence score.
+    """
+    beat_duration = 60 / tempo
+    
+    # Convert absolute onsets to beats
+    beat_positions = onsets / beat_duration
+    
+    # Test different bar lengths
+    bar_lengths = [3, 4, 5, 7]  # 3/4, 4/4, 5/4, 7/4 time signatures
+    
+    best_score = -float('inf')
+    best_bar_length = 4  # Default to 4/4
+    
+    for bar_length in bar_lengths:
+        scores = np.zeros(bar_length)
+        
+        # Test each possible downbeat offset
+        for offset in range(bar_length):
+            # Calculate modular positions within the bar
+            positions = (beat_positions + offset) % bar_length
+            
+            # Count notes at each beat position
+            for pos in positions:
+                beat_index = int(pos)
+                if beat_index < bar_length:
+                    scores[beat_index] += 1
+        
+        # Normalize counts
+        if np.sum(scores) > 0:
+            scores = scores / np.sum(scores)
+        
+        # Calculate score based on:
+        # 1. Stronger first beat (downbeat)
+        # 2. Overall distribution matching expected patterns
+        downbeat_strength = scores[0] if np.sum(scores) > 0 else 0
+        
+        # Expected distribution (first beat is strongest, other beats have typical patterns)
+        if bar_length == 4:
+            # 4/4: Strong-weak-medium-weak pattern
+            expected = np.array([0.4, 0.15, 0.3, 0.15])
+        elif bar_length == 3:
+            # 3/4: Strong-weak-weak pattern
+            expected = np.array([0.5, 0.25, 0.25])
+        elif bar_length == 5:
+            # 5/4 often grouped as 3+2 or 2+3
+            expected = np.array([0.3, 0.15, 0.2, 0.15, 0.2])
+        elif bar_length == 7:
+            # 7/4 often grouped as 4+3 or 3+4
+            expected = np.array([0.25, 0.1, 0.15, 0.1, 0.2, 0.1, 0.1])
+        
+        # Calculate similarity to expected pattern
+        pattern_similarity = 1 - np.mean(np.abs(scores - expected))
+        
+        # Combined score
+        total_score = 0.7 * downbeat_strength + 0.3 * pattern_similarity
+        
+        if total_score > best_score:
+            best_score = total_score
+            best_bar_length = bar_length
+    
+    return best_bar_length, best_score
+
+def tempo_swing_time_heuristic(memory: np.ndarray, branch: np.ndarray, 
+                              min_confidence: float = 0.6) -> float:
+    """
+    Calculate heuristic based on tempo, swing and time signature consistency.
+    """
+    if len(memory) < 8:  # Need enough notes to reliably estimate tempo
+        return 0
+    
+    # Extract durations from memory and branch
+    memory_durations = memory[:, 0]
+    branch_durations = branch[:, 0]
+    
+    # Calculate absolute note onset times
+    memory_onsets = np.cumsum(np.hstack(([0], memory_durations[:-1])))
+    branch_onsets = np.cumsum(np.hstack(([0], branch_durations[:-1])))
+    
+    # Estimate tempo and swing from memory
+    memory_tempo, memory_swing, tempo_confidence = estimate_tempo_and_swing(memory_durations)
+    print("Memory tempo:", memory_tempo, "Swing:", memory_swing, "Confidence:", tempo_confidence)
+    return 0
+    
+    ## Only proceed if confidence is high enough
+    #if tempo_confidence < min_confidence:
+    #    return 0
+    #
+    ## Detect time signature
+    #memory_time_sig, time_sig_confidence = detect_time_signature(memory_onsets, memory_tempo)
+    #
+    ## Calculate same for branch
+    #branch_tempo, branch_swing, _ = estimate_tempo_and_swing(branch_durations)
+    #branch_time_sig, _ = detect_time_signature(branch_onsets, branch_tempo)
+    #
+    ## Calculate tempo similarity (normalized to 0-1)
+    #tempo_diff = abs(memory_tempo - branch_tempo) / max(memory_tempo, branch_tempo)
+    #tempo_similarity = 1 - min(tempo_diff, 1)
+    #
+    ## Swing similarity (1 if same, 0 if different)
+    #swing_similarity = 1.0 if memory_swing == branch_swing else 0.0
+    #
+    ## Time signature similarity (1 if same, 0 if different)
+    #time_sig_similarity = 1.0 if memory_time_sig == branch_time_sig else 0.0
+    #
+    ## Weighted combination
+    #if time_sig_confidence < min_confidence:
+    #    # If time signature detection is unreliable, only use tempo and swing
+    #    return (2 * tempo_similarity + swing_similarity) / 3
+    #else:
+    #    return (0.5 * tempo_similarity + 0.25 * swing_similarity + 0.25 * time_sig_similarity)
 
 
 

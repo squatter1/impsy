@@ -327,6 +327,7 @@ class InteractionServer(object):
                         heuristics.pitch_range_heuristic,
                         heuristics.pitch_proximity_heuristic,
                         heuristics.key_and_modal_conformity_heuristic,
+                        #heuristics.tempo_swing_time_heuristic,
                     ],
                     time_limit_ms=100
                 )
