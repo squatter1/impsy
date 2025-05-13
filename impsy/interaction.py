@@ -205,7 +205,7 @@ class InteractionServer(object):
 
         # Set up structural variables
         self.use_prediction_tree = True
-        self.rnn_output_memory_size = 15
+        self.rnn_output_memory_size = 25
         self.rnn_output_memory = []
         self.rnn_prediction_tree = None
 
@@ -276,6 +276,10 @@ class InteractionServer(object):
                 self.rnn_output_memory.append(tuple(item))
                 if len(self.rnn_output_memory) > self.rnn_output_memory_size:
                     self.rnn_output_memory.pop(0)
+                # TODO: DELETE print the estimated tempo and swing values
+                durations = np.array(self.rnn_output_memory)[:, 0]
+                memory_tempo, memory_swing_name, memory_swing_duration, average_deviation = heuristics.estimate_tempo_and_swing(durations)
+                print(f"Estimated tempo: {memory_tempo}, Estimated swing: {memory_swing_name}, Average Deviation: {average_deviation}")
             rnn_output = neural_net.generate(item)
             if self.rnn_to_sound:
                 self.rnn_output_buffer.put_nowait(rnn_output)
@@ -300,7 +304,7 @@ class InteractionServer(object):
                         initial_lstm_states=neural_net.get_lstm_states(),
                         predict_function=neural_net.generate_gmm, 
                         sample_function=neural_net.sample_gmm,
-                        simulation_depth=2, 
+                        simulation_depth=1, 
                         exploration_weight=0.1,
                     )
                 else:
@@ -323,16 +327,21 @@ class InteractionServer(object):
                 best_output = self.rnn_prediction_tree.search(
                     memory=self.rnn_output_memory[:-1],
                     heuristic_functions=[
-                        heuristics.pitch_height_heuristic,
-                        heuristics.pitch_range_heuristic,
-                        heuristics.pitch_proximity_heuristic,
-                        heuristics.key_and_modal_conformity_heuristic,
-                        #heuristics.tempo_swing_time_heuristic,
+                        #heuristics.pitch_height_heuristic,
+                        #heuristics.pitch_range_heuristic,
+                        #heuristics.pitch_proximity_heuristic,
+                        #heuristics.key_and_modal_conformity_heuristic,
+                        #(heuristics.tempo_and_swing_memory, heuristics.tempo_and_swing_heuristic),
+                        (lambda x: heuristics.interval_markov_memory(x, order=2), heuristics.interval_markov_heuristic),
+                        #(lambda x: heuristics.time_multiple_markov_memory(x, order=2), heuristics.time_multiple_markov_heuristic),
                     ],
                     time_limit_ms=100
                 )
+                print(best_output[0])
+                print("SLEEPING")
+                time.sleep(1000)
                 
-                print("OUTPUT:", best_output[0])
+                #print("OUTPUT:", best_output[0])
 
 
                 ############################
@@ -404,15 +413,15 @@ class InteractionServer(object):
 
 
 
-                print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
-                print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
+                #print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
+                #print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
                 self.rnn_prediction_tree.set_root(best_output[0])
                 # End timer
                 end_time = time.time()
 
                 rnn_output = best_output[0]
                 neural_net.set_lstm_states(best_output[1])
-                print(f"Time taken: {end_time - start_time}")
+                #print(f"Time taken: {end_time - start_time}")
             # Put the output into the playback queue.
             self.rnn_output_buffer.put_nowait(
                 rnn_output

@@ -364,16 +364,35 @@ class MDRNNInferenceModel(abc.ABC):
 
     def sample_gmm(self, gmm_params: np.ndarray) -> np.ndarray:
         """Sample from the GMM parameters. Pi and Sigma temperature are adjustable."""
-        new_sample = (
-            mdn.sample_from_output(
-                gmm_params,
-                self.dimension,
-                self.n_mixtures,
-                temp=self.pi_temp,
-                sigma_temp=self.sigma_temp,
+        # Try to sample from the GMM parameters, if fail try again.
+        try:
+            new_sample = (
+                mdn.sample_from_output(
+                    gmm_params,
+                    self.dimension,
+                    self.n_mixtures,
+                    temp=self.pi_temp,
+                    sigma_temp=self.sigma_temp,
+                )
+                / SCALE_FACTOR
             )
-            / SCALE_FACTOR
-        )
+        except Exception as e:
+            print(f"Error sampling from GMM: {e}. Retrying...")
+            try:
+                new_sample = (
+                    mdn.sample_from_output(
+                        gmm_params,
+                        self.dimension,
+                        self.n_mixtures,
+                        temp=self.pi_temp,
+                        sigma_temp=self.sigma_temp,
+                    )
+                    / SCALE_FACTOR
+                )
+            except Exception as e:
+                print(f"Error sampling from GMM: {e}. Giving up.")
+                raise e
+        # Reshape the sample to the correct format
         new_sample = new_sample.reshape(
             self.dimension,
         )

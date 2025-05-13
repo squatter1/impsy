@@ -1,12 +1,13 @@
 import numpy as np
 from typing import Callable, Tuple
+from collections import defaultdict
 
 #######################################
 # FINAL HEURISTIC PARAMETER FUNCTIONS #
 #######################################
 
 def parameter_to_heuristic(memory: np.ndarray, branch: np.ndarray, parameter_function: Callable) -> float:
-    return abs(parameter_function(memory) - parameter_function(branch))
+    return -abs(parameter_function(memory) - parameter_function(branch))
 
 # Calculate the average pitch
 def pitch_height(branch: np.ndarray, scaling_factor: float = 88) -> float:
@@ -26,9 +27,14 @@ def pitch_proximity(branch: np.ndarray, scaling_factor: float = 22) -> float:
 def pitch_proximity_heuristic (memory: np.ndarray, branch: np.ndarray) -> float:
     return parameter_to_heuristic(memory, branch, pitch_proximity)
 
+###########################
+# KEY AND MODAL HEURISTIC #
+###########################
+
 class Scale:
-    def __init__(self, notes: np.ndarray):
+    def __init__(self, notes: np.ndarray, name: str = None):
         self.notes = notes
+        self.name = name
         self.n = len(notes)
 
     def root_conformity(self, branch: np.ndarray, root: int) -> float:
@@ -99,16 +105,16 @@ class Scale:
 # How well do the keys match?
 def key_conformity(branch: np.ndarray, min_key_conformity: float = 0.75) -> (float, Scale, int):
     # Calculate conformity to the major scale
-    major_scale = Scale(np.array([0, 2, 4, 5, 7, 9, 11]))
+    major_scale = Scale(np.array([0, 2, 4, 5, 7, 9, 11]), name="Major")
     major_conformity, major_root = major_scale.conformity(branch)
     # Calculate conformity to the pentatonic scale
-    pentatonic_scale = Scale(np.array([0, 2, 4, 7, 9]))
+    pentatonic_scale = Scale(np.array([0, 2, 4, 7, 9]), name="Pentatonic")
     pentatonic_conformity, pentatonic_root = pentatonic_scale.conformity(branch)
     # Calculate conformity to the blues scale
-    blues_scale = Scale(np.array([0, 3, 5, 6, 7, 10]))
+    blues_scale = Scale(np.array([0, 3, 5, 6, 7, 10]), name="Blues")
     blues_conformity, blues_root = blues_scale.conformity(branch)
     # Calculate conformity to the harmonic minor scale
-    harmonic_minor_scale = Scale(np.array([0, 2, 3, 5, 7, 8, 11]))
+    harmonic_minor_scale = Scale(np.array([0, 2, 3, 5, 7, 8, 11]), name="Harmonic Minor")
     harmonic_minor_conformity, harmonic_minor_root = harmonic_minor_scale.conformity(branch)
 
     # If any of these conformity values are above the min_key_conformity, return the max conformity value
@@ -116,39 +122,107 @@ def key_conformity(branch: np.ndarray, min_key_conformity: float = 0.75) -> (flo
     argmax_conformity = np.argmax([major_conformity, pentatonic_conformity, blues_conformity, harmonic_minor_conformity])
     max_scale = [major_scale, pentatonic_scale, blues_scale, harmonic_minor_scale][argmax_conformity]
     max_root = [major_root, pentatonic_root, blues_root, harmonic_minor_root][argmax_conformity]
+
     if max_conformity > min_key_conformity:
         return max_conformity, max_scale, max_root
     return 0, None, None
 
-def key_and_modal_conformity_heuristic(memory: np.ndarray, branch: np.ndarray, min_key_conformity: float = 0.75, min_mode_conformity: float = 0.25) -> float:
-    if len(memory) < 10:
-        # Not enough memory to establish a key
-        return 0
+def midi_to_note(midi_number):
+    notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+    octave = midi_number // 12 - 1
+    note = notes[midi_number % 12]
+    return note, str(octave)
+
+def key_and_modal_memory(memory: np.ndarray, min_key_conformity: float = 0.7) -> (float, Scale, int):
     memory = np.round(memory[:, 1]*127).astype(int) # *127 converts to 12 note scale
-    branch = np.round(branch[:, 1]*127).astype(int) # *127 converts to 12 note scale
     # Calculate key conformity for memory
     memory_conformity, memory_scale, memory_root = key_conformity(memory, min_key_conformity)
+    if memory_scale is not None:
+        # Calculate modal conformity
+        memory_mode_conformity, memory_mode = memory_scale.mode_conformity_all(memory, memory_root)
+        return memory_conformity, memory_scale, memory_root, memory_mode_conformity, memory_mode, min_key_conformity
+    return memory_conformity, memory_scale, memory_root, -1, None, min_key_conformity
+
+def key_and_modal_conformity_heuristic(memory_tuple: np.ndarray, branch: np.ndarray, min_mode_conformity: float = 0.25, mode_divisor: float = 6.0, mode_max: float = 0.15) -> float:
+    memory_conformity, memory_scale, memory_root, memory_mode_conformity, memory_mode, min_key_conformity = memory_tuple
     if memory_scale is None:
         # Chromatic scale, don't use key conformity as a heuristic
         return 0
     
+    branch = np.round(branch[:, 1]*127).astype(int) # *127 converts to 12 note scale
+
     # Calculate conformity of the branch to the memory scale
     branch_conformity = memory_scale.root_conformity(branch, memory_root)
 
-    # Calculate modal conformity
-    memory_mode_conformity, memory_mode = memory_scale.mode_conformity_all(memory, memory_root)
+    # If no memory mode, only use key conformity
     if memory_mode_conformity < min_mode_conformity:
         # Not enough memory to establish a mode
         return abs(branch_conformity - memory_conformity) / 2
+
+    # If branch_conformity < min_key_conformity, no point in calculating mode conformity, assume it is bad (as it will be calculated for other branches)
+    if branch_conformity < min_key_conformity and abs(branch_conformity - memory_conformity) > 1 - min_key_conformity:
+        # Not enough memory to establish a key
+        return abs(branch_conformity - memory_conformity) / 2 + mode_max 
 
     # Calculate conformity of the branch to the memory mode
     branch_mode_conformity = memory_scale.mode_conformity(branch, memory_root, memory_mode)
 
     # Return the difference between the branch conformity and the memory conformity for key and mode
-    return (abs(branch_conformity - memory_conformity) + abs(branch_mode_conformity - memory_mode_conformity)) / 2
+    return abs(branch_conformity - memory_conformity) / 2 + min(abs(branch_mode_conformity - memory_mode_conformity) / mode_divisor, mode_max)
+
+#############################
+# TEMPO AND SWING HEURISTIC #
+#############################
+
+def tempo_and_swing_deviation(durations: np.ndarray, tempo: int, swing_name: str, swing_ratio: str) -> float:
+    beat_duration = 60 / tempo  # Duration of one quarter note in seconds
+    score = 0
+    
+    # Expected durations in this tempo/swing combination
+    # Common note durations: whole, half, quarter, 8th, 16th notes and their dotted variants
+    expected_durations = []
+    
+    # Regular note durations
+    expected_durations.append((beat_duration * 4, 0))  # Whole note
+    expected_durations.append((beat_duration * 2, 0))  # Half note
+    expected_durations.append((beat_duration, 0))      # Quarter note
+    
+    # Eighth notes (no swing)
+    if swing_name == "none":
+        expected_durations.append((beat_duration / 2, 0))  # Eighth note
+        expected_durations.append((beat_duration / 4, 0))  # Sixteenth note
+    
+    # Add dotted variants with slight penalty
+    dotted_durations = [(d[0] * 1.5, 0.05) for d in expected_durations]
+    expected_durations.extend(dotted_durations)
+
+    # Add swing durations
+    if swing_name != "none":
+        # First eighth note in a pair (longer in swing)
+        expected_durations.append((beat_duration * swing_ratio / (1 + swing_ratio), 0))
+        # Second eighth note in a pair (shorter in swing)
+        expected_durations.append((beat_duration / (1 + swing_ratio), 0))
+
+    closest_durations = []
+    for duration in durations:
+        # Find closest expected duration
+        closest_duration = min(expected_durations, key=lambda x: x[1] + (abs(x[0] - duration) / x[0]))
+        closest_durations.append(closest_duration)
+        # Calculate score based on how close the duration is to the expected duration
+        score += (closest_duration[1] + abs(closest_duration[0] - duration) / closest_duration[0])
+
+    # Disincentivise swing with long swing notes next to each other (as this usually isn't actually swing)
+    if swing_name != "none":
+        for i in range(len(closest_durations) - 1):
+            if closest_durations[i][0] == closest_durations[i + 1][0] and closest_durations[i][0] == expected_durations[6][0]:
+                score += 0.2
+
+    score /= len(durations)  # Normalize by number of durations for average multiple from note in tempo
+
+    return score
 
 def estimate_tempo_and_swing(durations: np.ndarray, 
-                             tempo_range: Tuple[int, int] = (80, 158), 
+                             tempo_range: Tuple[int, int] = (70, 138), 
                              tempo_step: int = 2) -> Tuple[float, str, float]:
     """
     Estimate the tempo and swing ratio from a sequence of durations.
@@ -157,9 +231,10 @@ def estimate_tempo_and_swing(durations: np.ndarray,
     # Convert durations to seconds (assuming they're in seconds already)
     durations = durations.flatten()
     
-    best_score = -float('inf')
+    best_score = float('inf')
     best_tempo = 0
     best_swing = "none"
+    best_swing_duration = 0
     
     # Test different tempos and swing values
     tempos = range(tempo_range[0], tempo_range[1]+1, tempo_step)
@@ -169,170 +244,289 @@ def estimate_tempo_and_swing(durations: np.ndarray,
         "triplet": 2.0
     }
     
-    for tempo in tempos:
-        beat_duration = 60 / tempo  # Duration of one quarter note in seconds
-        
+    for tempo in tempos: 
         for swing_name, swing_ratio in swing_options.items():
-            score = 0
-            
-            # Expected durations in this tempo/swing combination
-            # Common note durations: whole, half, quarter, 8th, 16th notes and their dotted variants
-            expected_durations = []
-            
-            # Regular note durations
-            expected_durations.append(beat_duration * 4)  # Whole note
-            expected_durations.append(beat_duration * 2)  # Half note
-            expected_durations.append(beat_duration)      # Quarter note
-            
-            # Eighth notes (with swing)
-            if swing_name == "none":
-                expected_durations.append(beat_duration / 2)  # Eighth note
-                expected_durations.append(beat_duration / 4)  # Sixteenth note
-            else:
-                # First eighth note in a pair (longer in swing)
-                expected_durations.append(beat_duration * swing_ratio / (1 + swing_ratio))
-                # Second eighth note in a pair (shorter in swing)
-                expected_durations.append(beat_duration / (1 + swing_ratio))
-            
-            # Add dotted variants
-            dotted_durations = [d * 1.5 for d in expected_durations]
-            expected_durations.extend(dotted_durations)
-            
-            # Calculate score based on how well durations match expected durations
-            for duration in durations:
-                # Find closest expected duration
-                score -= min(expected_durations, key=lambda x: abs(x - duration) / duration)
-            
-            # Normalize score by number of notes
-            score /= len(durations)
-
-            # Normalise by expected duration density
-            score *= beat_duration
-            
-            if score > best_score:
+            # Calculate the score for this tempo and swing
+            score = tempo_and_swing_deviation(durations, tempo, swing_name, swing_ratio)
+            # If the score is better than the best score, update the best values
+            if score < best_score:
                 best_score = score
                 best_tempo = tempo
                 best_swing = swing_name
+                best_swing_duration = swing_ratio
     
-    return best_tempo, best_swing, best_score
+    return best_tempo, best_swing, best_swing_duration, best_score
 
-def detect_time_signature(onsets: np.ndarray, tempo: float) -> Tuple[int, float]:
-    """
-    Detect the time signature based on note onsets and the estimated tempo.
-    Returns the most likely beats per bar and confidence score.
-    """
-    beat_duration = 60 / tempo
-    
-    # Convert absolute onsets to beats
-    beat_positions = onsets / beat_duration
-    
-    # Test different bar lengths
-    bar_lengths = [3, 4, 5, 7]  # 3/4, 4/4, 5/4, 7/4 time signatures
-    
-    best_score = -float('inf')
-    best_bar_length = 4  # Default to 4/4
-    
-    for bar_length in bar_lengths:
-        scores = np.zeros(bar_length)
-        
-        # Test each possible downbeat offset
-        for offset in range(bar_length):
-            # Calculate modular positions within the bar
-            positions = (beat_positions + offset) % bar_length
-            
-            # Count notes at each beat position
-            for pos in positions:
-                beat_index = int(pos)
-                if beat_index < bar_length:
-                    scores[beat_index] += 1
-        
-        # Normalize counts
-        if np.sum(scores) > 0:
-            scores = scores / np.sum(scores)
-        
-        # Calculate score based on:
-        # 1. Stronger first beat (downbeat)
-        # 2. Overall distribution matching expected patterns
-        downbeat_strength = scores[0] if np.sum(scores) > 0 else 0
-        
-        # Expected distribution (first beat is strongest, other beats have typical patterns)
-        if bar_length == 4:
-            # 4/4: Strong-weak-medium-weak pattern
-            expected = np.array([0.4, 0.15, 0.3, 0.15])
-        elif bar_length == 3:
-            # 3/4: Strong-weak-weak pattern
-            expected = np.array([0.5, 0.25, 0.25])
-        elif bar_length == 5:
-            # 5/4 often grouped as 3+2 or 2+3
-            expected = np.array([0.3, 0.15, 0.2, 0.15, 0.2])
-        elif bar_length == 7:
-            # 7/4 often grouped as 4+3 or 3+4
-            expected = np.array([0.25, 0.1, 0.15, 0.1, 0.2, 0.1, 0.1])
-        
-        # Calculate similarity to expected pattern
-        pattern_similarity = 1 - np.mean(np.abs(scores - expected))
-        
-        # Combined score
-        total_score = 0.7 * downbeat_strength + 0.3 * pattern_similarity
-        
-        if total_score > best_score:
-            best_score = total_score
-            best_bar_length = bar_length
-    
-    return best_bar_length, best_score
-
-def tempo_swing_time_heuristic(memory: np.ndarray, branch: np.ndarray, 
-                              min_confidence: float = 0.6) -> float:
-    """
-    Calculate heuristic based on tempo, swing and time signature consistency.
-    """
-    if len(memory) < 8:  # Need enough notes to reliably estimate tempo
-        return 0
-    
+def tempo_and_swing_memory(memory: np.ndarray) -> Tuple:
     # Extract durations from memory and branch
     memory_durations = memory[:, 0]
-    branch_durations = branch[:, 0]
-    
-    # Calculate absolute note onset times
-    memory_onsets = np.cumsum(np.hstack(([0], memory_durations[:-1])))
-    branch_onsets = np.cumsum(np.hstack(([0], branch_durations[:-1])))
-    
+
     # Estimate tempo and swing from memory
-    memory_tempo, memory_swing, tempo_confidence = estimate_tempo_and_swing(memory_durations)
-    print("Memory tempo:", memory_tempo, "Swing:", memory_swing, "Confidence:", tempo_confidence)
-    return 0
+    memory_tempo, memory_swing_name, memory_swing_duration, average_deviation = estimate_tempo_and_swing(memory_durations)
+    return (memory_tempo, memory_swing_name, memory_swing_duration, average_deviation)
+
+def tempo_and_swing_heuristic(memory_tuple: np.ndarray, branch: np.ndarray, 
+                              max_tempo_deviation: float = 0.08) -> float:
+    """
+    Calculate heuristic based on tempo and swing deviation from memory.
+    """
+    memory_tempo, memory_swing_name, memory_swing_duration, average_deviation = memory_tuple
+
+    if average_deviation > max_tempo_deviation:
+        # If the average deviation is too high, return 0
+        return 0
+    tempo_conformity = 1 - (average_deviation / max_tempo_deviation)
     
-    ## Only proceed if confidence is high enough
-    #if tempo_confidence < min_confidence:
-    #    return 0
-    #
-    ## Detect time signature
-    #memory_time_sig, time_sig_confidence = detect_time_signature(memory_onsets, memory_tempo)
-    #
-    ## Calculate same for branch
-    #branch_tempo, branch_swing, _ = estimate_tempo_and_swing(branch_durations)
-    #branch_time_sig, _ = detect_time_signature(branch_onsets, branch_tempo)
-    #
-    ## Calculate tempo similarity (normalized to 0-1)
-    #tempo_diff = abs(memory_tempo - branch_tempo) / max(memory_tempo, branch_tempo)
-    #tempo_similarity = 1 - min(tempo_diff, 1)
-    #
-    ## Swing similarity (1 if same, 0 if different)
-    #swing_similarity = 1.0 if memory_swing == branch_swing else 0.0
-    #
-    ## Time signature similarity (1 if same, 0 if different)
-    #time_sig_similarity = 1.0 if memory_time_sig == branch_time_sig else 0.0
-    #
-    ## Weighted combination
-    #if time_sig_confidence < min_confidence:
-    #    # If time signature detection is unreliable, only use tempo and swing
-    #    return (2 * tempo_similarity + swing_similarity) / 3
-    #else:
-    #    return (0.5 * tempo_similarity + 0.25 * swing_similarity + 0.25 * time_sig_similarity)
+    # Calculate the conformity of the branch to the memory tempo
+    branch_durations = branch[:, 0]
+    branch_average_deviation = tempo_and_swing_deviation(branch_durations, memory_tempo, memory_swing_name, memory_swing_duration)
+    if branch_average_deviation < average_deviation:
+        # Better than memory, return 0
+        return 0
 
+    # In this case, we assume a tempo and swing, and just want to return the deviation from that established tempo and swing.
+    return tempo_conformity * (branch_average_deviation - average_deviation)
 
+#############################
+# INTERVAL MARKOV HEURISTIC #
+#############################
 
+def interval_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
+    """
+    Generate an n-order Markov chain model of intervals between notes from memory.
+    
+    Args:
+        memory: np.ndarray of shape (n, 2) where memory[:, 1] contains pitch values
+        order: The order of the Markov chain (default: 2)
+        
+    Returns:
+        A tuple containing:
+        - 'model': The Markov model as a nested dictionary
+        - 'order': The order of the Markov model
+        - 'total_transitions': Total number of transitions recorded
+        - 'smoothing': Laplace smoothing parameter
+        - 'valid': Boolean indicating if the model is valid (i.e., has enough data)
+    """
+    # Extract pitch values as integers
+    pitches = np.round(memory[:, 1] * 127).astype(int)
 
+    # Calculate intervals between consecutive notes
+    intervals = np.diff(pitches)
+
+    # Initialize the Markov model
+    model = defaultdict(lambda: defaultdict(int))
+    total_transitions = 0
+    
+    # Build the Markov model
+    if len(intervals) < order + 1:
+        # Not enough data to build the model of this order
+        return dict(model), order, total_transitions, 0.1, False, pitches[-order:]
+    
+    # Convert intervals to tuple states for easier dictionary handling
+    for i in range(len(intervals) - order):
+        # The state is the sequence of intervals before the transition
+        state = tuple(intervals[i:i+order])
+        # The next interval is the transition
+        next_interval = intervals[i+order]
+        
+        # Update the model
+        model[state][next_interval] += 1
+        total_transitions += 1
+    
+    # Convert defaultdict to regular dict for better serialization
+    model_dict = {state: dict(transitions) for state, transitions in model.items()}
+    
+    return model_dict, order, total_transitions, 0.1, True, pitches[-order:]
+
+def interval_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> float:
+    """
+    Calculate how well the branch conforms to the interval Markov model from memory.
+    
+    Args:
+        memory_model: The Markov model dictionary returned by interval_markov_memory
+        branch: np.ndarray of shape (n, 2) where branch[:, 1] contains pitch values
+        
+    Returns:
+        A float value between 0 and 1, where higher values indicate greater deviation
+        from the expected interval patterns (i.e., worse conformity)
+    """
+    model, order, total_transitions, smoothing, valid, last_pitches = memory_model
+    # If the model is not valid, return 0 (no penalty)
+    if not valid:
+        return 0.0
+    
+    # Extract pitch values and convert to integers if necessary
+    pitches = np.concatenate((last_pitches, np.round(branch[:, 1] * 127).astype(int)))
+
+    # Calculate intervals between consecutive notes
+    intervals = np.diff(pitches)
+
+    # Calculate probability for each transition in the branch
+    probabilities = []
+    
+    for i in range(len(intervals) - order):
+        # The state is the sequence of intervals before the transition
+        state = tuple(intervals[i:i+order])
+        # The next interval is the transition we're evaluating
+        next_interval = intervals[i+order]
+        
+        # Get the transition probabilities for this state
+        if state in model:
+            state_transitions = model[state]
+            # Count total transitions from this state
+            total_state_transitions = sum(state_transitions.values())
+            
+            # Calculate probability with Laplace smoothing
+            if next_interval in state_transitions:
+                prob = (state_transitions[next_interval] + smoothing) / (total_state_transitions + smoothing * len(state_transitions))
+            else:
+                # If transition never observed, use smoothing
+                prob = smoothing / (total_state_transitions + smoothing * len(state_transitions))
+        else:
+            # If state never observed, use a low probability
+            # This could be adjusted based on the diversity of the training data
+            prob = smoothing / (total_transitions / len(model) + smoothing)
+        probabilities.append(prob)
+    
+    # Average probability across all transitions
+    avg_probability = np.mean(probabilities)
+    
+    # Return 1 - avg_probability as the heuristic (higher value = worse conformity)
+    return 1.0 - avg_probability
+
+##################################
+# TIME MULTIPLE MARKOV HEURISTIC #
+##################################
+
+def time_multiple_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
+    """
+    Generate an n-order Markov chain model of time multiples between notes from memory.
+    
+    Args:
+        memory: np.ndarray of shape (n, 2) where memory[:, 0] contains time intervals
+        order: The order of the Markov chain (default: 2)
+        
+    Returns:
+        A tuple containing:
+        - 'model': The Markov model as a nested dictionary
+        - 'order': The order of the Markov model
+        - 'total_transitions': Total number of transitions recorded
+        - 'smoothing': Laplace smoothing parameter
+        - 'valid': Boolean indicating if the model is valid (i.e., has enough data)
+        - 'last_intervals': The last 'order' intervals from memory for concatenation
+    """
+    # Extract time intervals directly (memory[:, 0] already contains intervals)
+    time_intervals = memory[:, 0]
+    last_intervals = time_intervals[-order:]
+    
+    # Calculate multiples between consecutive time intervals
+    multiples = []
+    valid_multiples = [0.125, 0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0]
+    common_multiples = [0.25, 0.5, 1.0, 2.0, 4.0]  # Common multiples for music
+    
+    for i in range(len(time_intervals) - 1):
+        multiple = time_intervals[i+1] / time_intervals[i]
+        if time_intervals[i] == 0:
+            # Avoid division by zero, set to 1.0 (no change in rhythm)
+            multiples.append(1.0)
+            continue
+        # Round to the nearest valid multiple
+        rounded_multiple = min(valid_multiples, key=lambda x: abs(1 - (x / multiple)) if multiple in common_multiples else abs(1 - (x / multiple)) * 1.25) # sight disincentive for multiples that are not common
+        multiples.append(rounded_multiple)
+    
+    # Initialize the Markov model
+    model = defaultdict(lambda: defaultdict(int))
+    total_transitions = 0
+    
+    # Build the Markov model
+    if len(multiples) < order + 1:
+        return dict(model), order, total_transitions, 0.1, False, last_intervals
+    
+    # Convert multiples to tuple states for easier dictionary handling
+    for i in range(len(multiples) - order):
+        # The state is the sequence of multiples before the transition
+        state = tuple(multiples[i:i+order])
+        # The next multiple is the transition
+        next_multiple = multiples[i+order]
+        
+        # Update the model
+        model[state][next_multiple] += 1
+        total_transitions += 1
+    
+    # Convert defaultdict to regular dict for better serialization
+    model_dict = {state: dict(transitions) for state, transitions in model.items()}
+    
+    return model_dict, order, total_transitions, 0.1, True, last_intervals
+
+def time_multiple_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> float:
+    """
+    Calculate how well the branch conforms to the time multiple Markov model from memory.
+    
+    Args:
+        memory_model: The Markov model tuple returned by time_multiple_markov_memory
+        branch: np.ndarray of shape (n, 2) where branch[:, 0] contains time intervals
+        
+    Returns:
+        A float value between 0 and 1, where higher values indicate greater deviation
+        from the expected rhythmic patterns (i.e., worse conformity)
+    """
+    model, order, total_transitions, smoothing, valid, last_intervals = memory_model
+    # If the model is not valid, return 0 (no penalty)
+    if not valid:
+        return 0.0
+    
+    # Extract time intervals with padding at start
+    time_intervals = np.concatenate((last_intervals, branch[:, 0]))
+    
+    # Calculate multiples between consecutive time intervals
+    valid_multiples = [0.125, 0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0]
+    common_multiples = [0.25, 0.5, 1.0, 2.0, 4.0]  # Common multiples for music
+    multiples = []
+    
+    for i in range(len(time_intervals) - 1):
+        if time_intervals[i] == 0:
+            # Avoid division by zero, set to 1.0 (no change in rhythm)
+            multiples.append(1.0)
+            continue
+        multiple = time_intervals[i+1] / time_intervals[i]
+        # Round to the nearest valid multiple
+        rounded_multiple = min(valid_multiples, key=lambda x: abs(1 - (x / multiple)) if multiple in common_multiples else abs(1 - (x / multiple)) * 1.25) # sight disincentive for multiples that are not common
+        multiples.append(rounded_multiple)
+    
+    # Calculate probability for each transition in the branch
+    probabilities = []
+    
+    for i in range(len(multiples) - order):
+        # The state is the sequence of multiples before the transition
+        state = tuple(multiples[i:i+order])
+        # The next multiple is the transition we're evaluating
+        next_multiple = multiples[i+order]
+
+        # Get the transition probabilities for this state
+        if state in model:
+            state_transitions = model[state]
+            # Count total transitions from this state
+            total_state_transitions = sum(state_transitions.values())
+            
+            # Calculate probability with Laplace smoothing
+            if next_multiple in state_transitions:
+                prob = (state_transitions[next_multiple] + smoothing) / (total_state_transitions + smoothing * len(state_transitions))
+            else:
+                # If transition never observed, use smoothing
+                prob = smoothing / (total_state_transitions + smoothing * len(state_transitions))
+        else:
+            # If state never observed, use a low probability
+            if len(model) > 0:
+                prob = smoothing / (total_transitions / len(model) + smoothing)
+            else:
+                prob = 0.5  # Default probability if model is empty
+        probabilities.append(prob)
+    
+    # Average probability across all transitions
+    avg_probability = np.mean(probabilities)
+    
+    # Return 1 - avg_probability as the heuristic (higher value = worse conformity)
+    return 1.0 - avg_probability
 
 ######################################################
 # TESTING HEURISTICS (not used in the final version) #

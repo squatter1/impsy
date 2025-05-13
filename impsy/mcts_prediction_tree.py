@@ -87,9 +87,9 @@ class MCTSPredictionTree:
                  simulation_depth: int = 2, 
                  greedy_weight: float = 0.5,
                  exploration_weight: float = 1.0,
-                 progressive_widening_k: float = 1.0,
-                 progressive_widening_alpha: float = 0.5,
-                 min_originality_distances: np.ndarray = np.array([0.03, 0.0005]),
+                 progressive_widening_k: float = 2.5,
+                 progressive_widening_alpha: float = 0.25,
+                 min_originality_distances: np.ndarray = np.array([100.03, 0.0005]), #TODO: fix, also change to be multiple for time, not fixed distance
                  expansion_samples: int = 10,
                  snap_dp: [Optional[int]] = [None, 2],
                  selection_method: str = 'uct',
@@ -135,7 +135,7 @@ class MCTSPredictionTree:
     
     def search(self, 
                memory: List[np.ndarray], 
-               heuristic_functions: List[Callable],
+               heuristic_functions: List[Tuple[Callable, Callable]],
                time_limit_ms: int = 1000) -> Tuple[np.ndarray, List, float]:
         """
         Run MCTS for the given time limit and return the best branch found
@@ -165,6 +165,17 @@ class MCTSPredictionTree:
                         memory[i][j] /= 1.27
         if self.verbose:
             print("Starting MCTS search with memory: ", memory)
+        
+        # Get heuristic values for the memory
+        heuristic_memories = []
+        for heuristic_function in heuristic_functions:
+            # Get the heuristic value for this function
+            heuristic_memories.append(heuristic_function[0](memory))
+        #if heuristic_memories[0][3] > 0.05: # TODO For enforcing tempo to be used
+        #    # Sample random child from root
+        #    random_child = self.sample_function(self.root.gmm)
+        #    return (random_child, self.root.lstm_states)
+
         # Reset statistics
         self.nodes_searched = 0
         self.branches_simulated = 0
@@ -185,7 +196,7 @@ class MCTSPredictionTree:
             # Simulation
             if self.verbose:
                 print("Simulating")
-            simulation_result = self._simulate(selected_node, memory, heuristic_functions)
+            simulation_result = self._simulate(selected_node, memory, heuristic_functions, heuristic_memories)
             if self.verbose:
                 print(f"Simulation result: {simulation_result}")
             
@@ -202,7 +213,11 @@ class MCTSPredictionTree:
                     self.kr_lambda = self.kr_lambda_start + progress * (self.kr_lambda_target - self.kr_lambda_start)           
         
         # Return best child after time is up, argmax over visits
-        # best child = argmax of self.root.children visits
+        # best child = argmax of self.root.children visits      
+        # Print all children, their average scores, and their best score
+        print([child.output for child in self.root.children])
+        print([child.visits for child in self.root.children])
+        print([child.value / child.visits for child in self.root.children])
         best_child = self.root.most_visited_child()
         if self.verbose:
             print("Initial node:", self.root.output)
@@ -422,7 +437,7 @@ class MCTSPredictionTree:
         
         return current
     
-    def _simulate(self, selected_node: MCTSNode, memory: List[np.ndarray], heuristic_functions: List[Callable]) -> float:
+    def _simulate(self, selected_node: MCTSNode, memory: List[np.ndarray], heuristic_functions: List[Callable], heuristic_memories: List[Tuple]) -> float:
         """
         Run a simulation from the given node to estimate its value
         """
@@ -456,11 +471,13 @@ class MCTSPredictionTree:
 
         # Calculate heuristic value for the simulated branch
         heuristic_value = 0.0
-        for heuristic_function in heuristic_functions:
+        for i in range(len(heuristic_functions)):
+            heuristic_function = heuristic_functions[i]
+            heuristic_memory = heuristic_memories[i]
             # Get the heuristic value for this function
-            function_value = heuristic_function(memory, simulated_branch)
+            function_value = heuristic_function[1](heuristic_memory, simulated_branch)
             if self.verbose:
-                print(f"Calculating heuristic value for function: {heuristic_function.__name__}")
+                print(f"Calculating heuristic value for function: {heuristic_function[1].__name__}")
                 print(f"Result: {function_value}")
             heuristic_value += function_value
         
