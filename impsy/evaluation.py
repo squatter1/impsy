@@ -4,6 +4,7 @@ from pathlib import Path
 import datetime
 import mdrnn
 import heuristics
+from typing import Callable, Optional, Tuple
 from mcts_prediction_tree import MCTSPredictionTree
 
 class MCTSEvaluator:
@@ -12,7 +13,6 @@ class MCTSEvaluator:
         self.units = units
         self.mixtures = mixtures
         self.layers = layers
-        self.results = {}
         
     def load_model(self, model_file: Path):
         """Load a model from file."""
@@ -60,7 +60,7 @@ class MCTSEvaluator:
             click.secho(f"Warning: Mismatch in durations ({len(durations)}) and sequence ({len(sequence)}) lengths", fg="yellow")
             return np.array([])
     
-    def evaluate_model(self, model_file: Path, log_file: Path, init_memory_length: int = 40) -> float:
+    def evaluate_model(self, model_file: Path, log_file: Path, init_memory_length: int = 40, heuristic: Optional[Tuple[Callable, Callable]] = None, use_duration_match: bool = True, use_pitch_match: bool = True) -> float:
         """Evaluate a model against a log file and return accuracy."""
         # Load the model
         neural_net = self.load_model(model_file)
@@ -82,8 +82,8 @@ class MCTSEvaluator:
         
         # Feed the sequence to the model one by one and make predictions
         for i in range(total_predictions):
-            # Print a progress message every 100 iterations
-            if i % 100 == 0:
+            # Print a progress message every 250 iterations
+            if i % 250 == 0 and i > 0:
                 click.secho(f"Evaluating: {i}/{total_predictions}", fg="blue")
             # Set i to correct index given init_memory_length
             i += init_memory_length
@@ -104,62 +104,74 @@ class MCTSEvaluator:
             )
             
             # Run search
-            best_output = prediction_tree.search(
-                memory=rnn_output_memory[:-1],  # Copy of memory up to this point
-                heuristic_functions=[
-                    heuristics.pitch_height_heuristic,
-                    heuristics.pitch_range_heuristic,
-                    heuristics.pitch_proximity_heuristic,
-                    heuristics.key_and_modal_conformity_heuristic,
-                    #heuristics.tempo_swing_time_heuristic,
-                ],
-                time_limit_ms=100
-            )[0]  
+            if heuristic:
+                import time
+                start = time.time()
+                best_output = prediction_tree.search(
+                    memory=rnn_output_memory[:-1],  # Copy of memory up to this point
+                    heuristic_functions=[heuristic],
+                    time_limit_ms=100
+                )[0]
+                end = time.time()
+                ## If search time less than 10ms, reduce total predictions by 1 and continue
+                #if (end - start) < 0.05: # TODO For enforcing tempo to be used
+                #    total_predictions -= 1
+                #    continue
+            else:
+                # Use all available heuristics
+                best_output = prediction_tree.search(
+                    memory=rnn_output_memory[:-1],  # Copy of memory up to this point
+                    heuristic_functions=[
+                        #heuristics.pitch_height_heuristic,
+                        #heuristics.pitch_range_heuristic,
+                        #heuristics.pitch_proximity_heuristic,
+                        (heuristics.tempo_and_swing_memory, heuristics.tempo_and_swing_heuristic),
+                        #heuristics.tempo_swing_time_heuristic,
+                    ],
+                    time_limit_ms=100
+                )[0]  
             
             # Check if prediction matches actual next item
-            # Duration match if the absolute difference in the multiple of the pitches is less than 0.2
-            duration_match = max(best_output[0], next_item[0]) / max(min(best_output[0], next_item[0]),0.001) < 1.2
+            # Duration match if the absolute difference in the multiple of the pitches is less than 0.1
+            duration_match = max(best_output[0], next_item[0]) / max(min(best_output[0], next_item[0]),0.001) < 1.1
             # Roudn pitches to check exactly
             output_pitch = round(best_output[1]*127)
             next_item_pitch = round(next_item[1]*127)
             pitch_match = output_pitch == next_item_pitch  # Exact match for pitch
             
-            #if duration_match and pitch_match: TODO readd
-            #    correct_predictions += 1
-            # TODO currently only have pitcxh heuristics, so only check pitch match
-            if pitch_match:
+            if (not use_duration_match or duration_match) and (not use_pitch_match or pitch_match):
                 correct_predictions += 1
 
             # Get the pure mdrnn prediction
             mdrnn_output = neural_net.generate(item)
 
             # Check if prediction matches actual next item
-            # Duration match if the absolute difference in the multiple of the pitches is less than 0.2
-            duration_match_mdrnn = max(mdrnn_output[0], next_item[0]) / max(min(mdrnn_output[0], next_item[0]),0.001) < 1.2
+            # Duration match if the absolute difference in the multiple of the pitches is less than 0.1
+            duration_match_mdrnn = max(mdrnn_output[0], next_item[0]) / max(min(mdrnn_output[0], next_item[0]),0.001) < 1.1
             # Roudn pitches to check exactly
             output_pitch_mdrnn = round(mdrnn_output[1]*127)
             next_item_pitch_mdrnn = round(next_item[1]*127)
             pitch_match_mdrnn = output_pitch_mdrnn == next_item_pitch_mdrnn
 
-            #TODO change
-            if pitch_match_mdrnn:
+            if (not use_duration_match or duration_match_mdrnn) and (not use_pitch_match or pitch_match_mdrnn):
                 correct_predictions_mdrnn += 1
             
             # Update memory with actual next item for next iteration
             rnn_output_memory.append(next_item)
             # Remove the first item to keep memory length constant
             rnn_output_memory.pop(0)
-        
-        # Calculate accuracy
-        accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
-        accuracy_mdrnn = correct_predictions_mdrnn / total_predictions if total_predictions > 0 else 0
-        return accuracy, accuracy_mdrnn
+
+        return total_predictions, correct_predictions, correct_predictions_mdrnn
     
-    def run_evaluation(self, models_dir: Path, logs_dir: Path):
+    def run_evaluation(self, models_dir: Path, logs_dir: Path, heuristic: Optional[Tuple[Callable, Callable]] = None, use_duration_match: bool = True, use_pitch_match: bool = True, init_memory_length: int = 40):
         """Run evaluation on all model and log file pairs."""
+        click.secho(f"Running evaluation with heuristic: {heuristic[1].__name__ if heuristic else 'ALL'}", fg="magenta", bold=True)
         # Find all .tflite model files
         model_files = sorted(models_dir.glob("*.tflite"))
         
+        grand_total_predictions = 0
+        grand_correct_predictions = 0
+        grand_correct_predictions_mdrnn = 0
         for model_file in model_files:
             # Split the model stem by '-' and take the first part as model number
             model_num = model_file.stem.split('-')[0]
@@ -169,21 +181,25 @@ class MCTSEvaluator:
                 click.secho(f"Log file not found: {log_file}", fg="red")
                 continue
             
-            click.secho(f"Evaluating model {model_num}...", fg="blue")
-            accuracy, accuracy_mdrnn = self.evaluate_model(model_file, log_file)
-            self.results[model_num] = accuracy
-            click.secho(f"Model {model_num} accuracy: {accuracy:.2%}", fg="green")
-            click.secho(f"Model {model_num} accuracy (MDRNN): {accuracy_mdrnn:.2%}", fg="green")
-        
-        # Print overall results
-        click.secho("\nEvaluation Results:", fg="blue", bold=True)
-        for model_num, accuracy in sorted(self.results.items(), key=lambda x: int(x[0])):
-            click.secho(f"Model {model_num}: {accuracy:.2%}", fg="green")
-        
-        # Calculate average accuracy
-        if self.results:
-            avg_accuracy = sum(self.results.values()) / len(self.results)
-            click.secho(f"\nAverage accuracy across all models: {avg_accuracy:.2%}", fg="blue", bold=True)
+            click.secho(f"Evaluating model {model_num}...", fg="cyan")
+            if heuristic:
+                total_predictions, correct_predictions, correct_predictions_mdrnn = self.evaluate_model(model_file, log_file, heuristic=heuristic, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length)
+            else:
+                total_predictions, correct_predictions, correct_predictions_mdrnn = self.evaluate_model(model_file, log_file, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length)
+            grand_total_predictions += total_predictions
+            grand_correct_predictions += correct_predictions
+            grand_correct_predictions_mdrnn += correct_predictions_mdrnn
+            accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0.0
+            accuracy_mdrnn = correct_predictions_mdrnn / total_predictions if total_predictions > 0 else 0.0
+            click.secho(f"Model {model_num} accuracy: {correct_predictions}/{total_predictions} ({accuracy:.2%})", fg="green")
+            click.secho(f"Model {model_num} accuracy (MDRNN): {correct_predictions_mdrnn}/{total_predictions} ({accuracy_mdrnn:.2%})", fg="green")
+
+        # Print grand totals and grand total accuracy
+        grand_total_accuracy = grand_correct_predictions / grand_total_predictions if grand_total_predictions > 0 else 0.0
+        click.secho(f"\nGrand total accuracy: {grand_correct_predictions}/{grand_total_predictions} ({grand_total_accuracy:.2%})", fg="magenta")
+        grand_total_accuracy_mdrnn = grand_correct_predictions_mdrnn / grand_total_predictions if grand_total_predictions > 0 else 0.0
+        click.secho(f"Grand total accuracy (MDRNN): {grand_correct_predictions_mdrnn}/{grand_total_predictions} ({grand_total_accuracy_mdrnn:.2%})", fg="magenta")
+        click.secho(f"Evaluation complete!", fg="magenta")
 
 
 def main(models_dir, logs_dir):
@@ -192,9 +208,39 @@ def main(models_dir, logs_dir):
     logs_path = Path(logs_dir)
     
     evaluator = MCTSEvaluator()
-    evaluator.run_evaluation(models_path, logs_path)
+    #evaluator.run_evaluation(models_path, logs_path, heuristic=heuristics.pitch_height_heuristic, use_duration_match=False, use_pitch_match=True)
+    #evaluator.run_evaluation(models_path, logs_path, heuristic=heuristics.pitch_range_heuristic, use_duration_match=False, use_pitch_match=True)
+    #evaluator.run_evaluation(models_path, logs_path, heuristic=heuristics.pitch_proximity_heuristic, use_duration_match=False, use_pitch_match=True)
+    #evaluator.run_evaluation(models_path, logs_path, 
+    #                         heuristic=(
+    #                             lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
+    #                             lambda x, y: heuristics.key_and_modal_conformity_heuristic(x, y, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15)
+    #                         ), 
+    #                         use_duration_match=False, use_pitch_match=True, init_memory_length=25)
+    #evaluator.run_evaluation(models_path, logs_path, heuristic=(heuristics.tempo_and_swing_memory, heuristics.tempo_and_swing_heuristic),
+    #                         use_duration_match=True, use_pitch_match=False, init_memory_length=15)
+    evaluator.run_evaluation(models_path, logs_path, 
+                             heuristic=(
+                                 lambda x: heuristics.interval_markov_memory(x, order=1),
+                                 lambda x, y: heuristics.interval_markov_heuristic(x, y)
+                             ), 
+                             use_duration_match=False, use_pitch_match=True, init_memory_length=25)
+    evaluator.run_evaluation(models_path, logs_path, 
+                             heuristic=(
+                                 lambda x: heuristics.interval_markov_memory(x, order=2),
+                                 lambda x, y: heuristics.interval_markov_heuristic(x, y)
+                             ), 
+                             use_duration_match=False, use_pitch_match=True, init_memory_length=25)
+    evaluator.run_evaluation(models_path, logs_path, 
+                             heuristic=(
+                                 lambda x: heuristics.interval_markov_memory(x, order=3),
+                                 lambda x, y: heuristics.interval_markov_heuristic(x, y)
+                             ), 
+                             use_duration_match=False, use_pitch_match=True, init_memory_length=25)
+    #evaluator.run_evaluation(models_path, logs_path, heuristic=None)  # Run with all heuristics
+
     
-    click.secho("Evaluation complete!", fg="green", bold=True)
+    click.secho("All evaluations complete!", fg="magenta", bold=True)
 
 
 if __name__ == "__main__":
