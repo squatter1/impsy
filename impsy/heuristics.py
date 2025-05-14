@@ -157,7 +157,7 @@ def key_and_modal_conformity_heuristic(memory_tuple: np.ndarray, branch: np.ndar
     # If no memory mode, only use key conformity
     if memory_mode_conformity < min_mode_conformity:
         # Not enough memory to establish a mode
-        return abs(branch_conformity - memory_conformity) / 2
+        return abs(branch_conformity - memory_conformity) / 2 + mode_max / 2
 
     # If branch_conformity < min_key_conformity, no point in calculating mode conformity, assume it is bad (as it will be calculated for other branches)
     if branch_conformity < min_key_conformity and abs(branch_conformity - memory_conformity) > 1 - min_key_conformity:
@@ -320,7 +320,7 @@ def interval_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
     # Build the Markov model
     if len(intervals) < order + 1:
         # Not enough data to build the model of this order
-        return dict(model), order, total_transitions, 0.1, False, pitches[-order:]
+        return dict(model), order, total_transitions, False, pitches[-order:]
     
     # Convert intervals to tuple states for easier dictionary handling
     for i in range(len(intervals) - order):
@@ -336,9 +336,9 @@ def interval_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
     # Convert defaultdict to regular dict for better serialization
     model_dict = {state: dict(transitions) for state, transitions in model.items()}
     
-    return model_dict, order, total_transitions, 0.1, True, pitches[-order:]
+    return model_dict, order, total_transitions, True, pitches[-order:]
 
-def interval_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> float:
+def interval_markov_heuristic(memory_model: Tuple, branch: np.ndarray, smoothing: float = 0.1) -> float:
     """
     Calculate how well the branch conforms to the interval Markov model from memory.
     
@@ -350,7 +350,7 @@ def interval_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> float:
         A float value between 0 and 1, where higher values indicate greater deviation
         from the expected interval patterns (i.e., worse conformity)
     """
-    model, order, total_transitions, smoothing, valid, last_pitches = memory_model
+    model, order, total_transitions, valid, last_pitches = memory_model
     # If the model is not valid, return 0 (no penalty)
     if not valid:
         return 0.0
@@ -390,9 +390,9 @@ def interval_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> float:
     
     # Average probability across all transitions
     avg_probability = np.mean(probabilities)
-    
+
     # Return 1 - avg_probability as the heuristic (higher value = worse conformity)
-    return 1.0 - avg_probability
+    return (1.0 - avg_probability) * 2 #TODO: move to actual heuristic multiplier section
 
 ##################################
 # TIME MULTIPLE MARKOV HEURISTIC #
@@ -424,12 +424,12 @@ def time_multiple_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
     valid_multiples = [0.125, 0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0]
     common_multiples = [0.25, 0.5, 1.0, 2.0, 4.0]  # Common multiples for music
     
-    for i in range(len(time_intervals) - 1):
-        multiple = time_intervals[i+1] / time_intervals[i]
-        if time_intervals[i] == 0:
+    for i in range(len(time_intervals) - 1): 
+        if time_intervals[i] == 0 or time_intervals[i+1] == 0:
             # Avoid division by zero, set to 1.0 (no change in rhythm)
             multiples.append(1.0)
             continue
+        multiple = time_intervals[i+1] / time_intervals[i]
         # Round to the nearest valid multiple
         rounded_multiple = min(valid_multiples, key=lambda x: abs(1 - (x / multiple)) if multiple in common_multiples else abs(1 - (x / multiple)) * 1.25) # sight disincentive for multiples that are not common
         multiples.append(rounded_multiple)
@@ -440,7 +440,7 @@ def time_multiple_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
     
     # Build the Markov model
     if len(multiples) < order + 1:
-        return dict(model), order, total_transitions, 0.1, False, last_intervals
+        return dict(model), order, total_transitions, False, last_intervals
     
     # Convert multiples to tuple states for easier dictionary handling
     for i in range(len(multiples) - order):
@@ -456,9 +456,9 @@ def time_multiple_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
     # Convert defaultdict to regular dict for better serialization
     model_dict = {state: dict(transitions) for state, transitions in model.items()}
     
-    return model_dict, order, total_transitions, 0.1, True, last_intervals
+    return model_dict, order, total_transitions, True, last_intervals
 
-def time_multiple_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> float:
+def time_multiple_markov_heuristic(memory_model: Tuple, branch: np.ndarray, smoothing: float = 0.1) -> float:
     """
     Calculate how well the branch conforms to the time multiple Markov model from memory.
     
@@ -470,7 +470,7 @@ def time_multiple_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> f
         A float value between 0 and 1, where higher values indicate greater deviation
         from the expected rhythmic patterns (i.e., worse conformity)
     """
-    model, order, total_transitions, smoothing, valid, last_intervals = memory_model
+    model, order, total_transitions, valid, last_intervals = memory_model
     # If the model is not valid, return 0 (no penalty)
     if not valid:
         return 0.0
@@ -484,7 +484,7 @@ def time_multiple_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> f
     multiples = []
     
     for i in range(len(time_intervals) - 1):
-        if time_intervals[i] == 0:
+        if time_intervals[i] == 0 or time_intervals[i+1] == 0:
             # Avoid division by zero, set to 1.0 (no change in rhythm)
             multiples.append(1.0)
             continue
@@ -520,6 +520,164 @@ def time_multiple_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> f
                 prob = smoothing / (total_transitions / len(model) + smoothing)
             else:
                 prob = 0.5  # Default probability if model is empty
+        probabilities.append(prob)
+    
+    # Average probability across all transitions
+    avg_probability = np.mean(probabilities)
+
+    # Return 1 - avg_probability as the heuristic (higher value = worse conformity)
+    return (1.0 - avg_probability) / 5
+
+########################
+# REPETITION HEURISTIC #
+########################
+
+def repetition_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
+    """
+    Generate an n-order Markov chain model that combines both pitch intervals
+    and time multiples between notes from memory.
+    
+    Args:
+        memory: np.ndarray of shape (n, 2) where memory[:, 0] contains time intervals
+            and memory[:, 1] contains pitch values
+        order: The order of the Markov chain (default: 2)
+        
+    Returns:
+        A tuple containing:
+        - 'model': The Markov model as a nested dictionary
+        - 'order': The order of the Markov model
+        - 'total_transitions': Total number of transitions recorded
+        - 'valid': Boolean indicating if the model is valid (i.e., has enough data)
+        - 'last_pitches': The last 'order' pitches from memory for concatenation
+        - 'last_intervals': The last 'order' time intervals from memory for concatenation
+    """
+    # Extract pitch values as integers
+    pitches = np.round(memory[:, 1] * 127).astype(int)
+
+    # Extract time intervals directly
+    time_intervals = memory[:, 0]
+
+    # Calculate pitch intervals between consecutive notes
+    pitch_intervals = np.diff(pitches)
+
+    # Calculate time multiples between consecutive intervals
+    valid_multiples = [0.125, 0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0]
+    common_multiples = [0.25, 0.5, 1.0, 2.0, 4.0]  # Common multiples for music
+    time_multiples = []
+    
+    for i in range(len(time_intervals) - 1):
+        if time_intervals[i] == 0 or time_intervals[i+1] == 0:
+            # Avoid division by zero, set to 1.0 (no change in rhythm)
+            time_multiples.append(1.0)
+            continue
+        multiple = time_intervals[i+1] / time_intervals[i]
+        # Round to the nearest valid multiple
+        rounded_multiple = min(valid_multiples, key=lambda x: abs(1 - (x / multiple)) if multiple in common_multiples else abs(1 - (x / multiple)) * 1.25)
+        time_multiples.append(rounded_multiple)
+
+    # Combine pitch intervals and time multiples into tuples
+    combined_events = [(pitch_intervals[i], time_multiples[i]) for i in range(len(pitch_intervals))]
+    
+    # Initialize the Markov model
+    model = defaultdict(lambda: defaultdict(int))
+    total_transitions = 0
+    
+    # Store the last 'order' values for both pitches and time intervals
+    last_pitches = pitches[-order:]
+    last_intervals = time_intervals[-order:]
+    
+    # Build the Markov model
+    if len(combined_events) < order + 1:
+        # Not enough data to build the model of this order
+        return dict(model), order, total_transitions, False, last_pitches, last_intervals
+    
+    # Convert combined events to tuple states for easier dictionary handling
+    for i in range(len(combined_events) - order):
+        # The state is the sequence of combined events before the transition
+        state = tuple(combined_events[i:i+order])
+        # The next combined event is the transition
+        next_event = combined_events[i+order]
+        
+        # Update the model
+        model[state][next_event] += 1
+        total_transitions += 1
+    
+    # Convert defaultdict to regular dict for better serialization
+    model_dict = {state: dict(transitions) for state, transitions in model.items()}
+
+    return model_dict, order, total_transitions, True, last_pitches, last_intervals
+
+def repetition_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> float:
+    """
+    Calculate how well the branch conforms to the combined pitch interval and time multiple
+    Markov model from memory.
+    
+    Args:
+        memory_model: The Markov model tuple returned by combined_markov_memory
+        branch: np.ndarray of shape (n, 2) where branch[:, 0] contains time intervals
+            and branch[:, 1] contains pitch values
+        
+    Returns:
+        A float value between 0 and 1, where higher values indicate greater deviation
+        from the expected combined patterns (i.e., worse conformity)
+    """
+    model, order, total_transitions, valid, last_pitches, last_intervals = memory_model
+    
+    # If the model is not valid, return 0 (no penalty)
+    if not valid:
+        return 0.0
+    
+    # Extract pitch values and convert to integers
+    pitches = np.concatenate((last_pitches, np.round(branch[:, 1] * 127).astype(int)))
+
+    # Extract time intervals with padding at start
+    time_intervals = np.concatenate((last_intervals, branch[:, 0]))
+
+    # Calculate pitch intervals between consecutive notes
+    pitch_intervals = np.diff(pitches)
+
+    # Calculate time multiples between consecutive intervals
+    valid_multiples = [0.125, 0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0]
+    common_multiples = [0.25, 0.5, 1.0, 2.0, 4.0]
+    time_multiples = []
+    
+    for i in range(len(time_intervals) - 1):
+        if time_intervals[i] == 0 or time_intervals[i+1] == 0:
+            # Avoid division by zero, set to 1.0 (no change in rhythm)
+            time_multiples.append(1.0)
+            continue
+        multiple = time_intervals[i+1] / time_intervals[i]
+        # Round to the nearest valid multiple
+        rounded_multiple = min(valid_multiples, key=lambda x: abs(1 - (x / multiple)) if multiple in common_multiples else abs(1 - (x / multiple)) * 1.25)
+        time_multiples.append(rounded_multiple)
+
+    # Combine pitch intervals and time multiples into tuples
+    combined_events = [(pitch_intervals[i], time_multiples[i]) for i in range(len(pitch_intervals))]
+    
+    # Calculate probability for each transition in the branch
+    probabilities = []
+    
+    for i in range(len(combined_events) - order):
+        # The state is the sequence of combined events before the transition
+        state = tuple(combined_events[i:i+order])
+        # The next combined event is the transition we're evaluating
+        next_event = combined_events[i+order]
+
+        # Get the transition probabilities for this state
+        if state in model:
+            state_transitions = model[state]
+            # Count total transitions from this state
+            total_state_transitions = sum(state_transitions.values())
+            
+            # Calculate probability
+            if next_event in state_transitions:
+                prob = state_transitions[next_event] / total_state_transitions
+            else:
+                # No transition observed, no repetition
+                prob = 0
+        else:
+            # If state never observed, no repetition
+            prob = 0
         probabilities.append(prob)
     
     # Average probability across all transitions

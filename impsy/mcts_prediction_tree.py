@@ -89,7 +89,7 @@ class MCTSPredictionTree:
                  exploration_weight: float = 1.0,
                  progressive_widening_k: float = 2.5,
                  progressive_widening_alpha: float = 0.25,
-                 min_originality_distances: np.ndarray = np.array([100.03, 0.0005]), #TODO: fix, also change to be multiple for time, not fixed distance
+                 min_originality_distances: np.ndarray = np.array([0.03, 0.0005]), #TODO: fix, also change to be multiple for time, not fixed distance
                  expansion_samples: int = 10,
                  snap_dp: [Optional[int]] = [None, 2],
                  selection_method: str = 'uct',
@@ -215,9 +215,9 @@ class MCTSPredictionTree:
         # Return best child after time is up, argmax over visits
         # best child = argmax of self.root.children visits      
         # Print all children, their average scores, and their best score
-        print([child.output for child in self.root.children])
-        print([child.visits for child in self.root.children])
-        print([child.value / child.visits for child in self.root.children])
+        #print([child.output for child in self.root.children])               #TODO DELETE 
+        #print([child.visits for child in self.root.children])               #TODO DELETE
+        #print([child.value / child.visits for child in self.root.children]) #TODO DELETE
         best_child = self.root.most_visited_child()
         if self.verbose:
             print("Initial node:", self.root.output)
