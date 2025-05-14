@@ -330,12 +330,16 @@ class InteractionServer(object):
                         #heuristics.pitch_height_heuristic,
                         #heuristics.pitch_range_heuristic,
                         #heuristics.pitch_proximity_heuristic,
-                        #heuristics.key_and_modal_conformity_heuristic,
+                        (
+                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
+                            lambda x, y: heuristics.key_and_modal_conformity_heuristic(x, y, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15)
+                        ),
                         #(heuristics.tempo_and_swing_memory, heuristics.tempo_and_swing_heuristic),
-                        (lambda x: heuristics.interval_markov_memory(x, order=2), heuristics.interval_markov_heuristic),
-                        #(lambda x: heuristics.time_multiple_markov_memory(x, order=2), heuristics.time_multiple_markov_heuristic),
+                        #(lambda x: heuristics.interval_markov_memory(x, order=1), heuristics.interval_markov_heuristic),
+                        #(lambda x: heuristics.time_multiple_markov_memory(x, order=1), heuristics.time_multiple_markov_heuristic),
+                        #(lambda x: heuristics.repetition_markov_memory(x, order=2), heuristics.repetition_markov_heuristic),
                     ],
-                    time_limit_ms=100
+                    time_limit_ms=10000
                 )
                 print(best_output[0])
                 print("SLEEPING")
