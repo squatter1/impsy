@@ -66,18 +66,6 @@ class MCTSNode:
         """Return the child with the most visits"""
         return max(self.children, key=lambda child: child.visits)  
 
-    def get_all_actions(self) -> List[np.ndarray]:
-        """Get all actions tried from this node as a np array (for kernel regression)"""
-        return [child.output for child in self.children]
-    
-    def get_all_values(self) -> List[float]:
-        """Get all values for actions tried from this node (for kernel regression)"""
-        return [child.value / child.visits if child.visits > 0 else 0 for child in self.children]
-    
-    def get_all_visits(self) -> List[int]:
-        """Get all visit counts for actions tried from this node (for kernel density)"""
-        return [child.visits for child in self.children] 
-
 class MCTSPredictionTree:
     def __init__(self, 
                  root_output: np.ndarray,
@@ -89,17 +77,12 @@ class MCTSPredictionTree:
                  exploration_weight: float = 1.0,
                  progressive_widening_k: float = 2.5,
                  progressive_widening_alpha: float = 0.25,
-                 min_originality_distances: np.ndarray = np.array([0.03, 0.0005]), #TODO: fix, also change to be multiple for time, not fixed distance
+                 min_originality_distances: np.ndarray = np.array([0.08, None]),
                  expansion_samples: int = 10,
                  snap_dp: [Optional[int]] = [None, 2],
-                 selection_method: str = 'uct',
-                 # Parameters for KR-AUCB
-                 kr_lambda_start: float = 0.0,
-                 kr_lambda_target: float = 0.8,
-                 kr_lambda_schedule_iters: int = 1000):
+                 verbose: bool = False):
         self.root = MCTSNode(root_output, snap_dp=snap_dp)
-        # Get the GMM for the root
-        self.root.gmm, self.root.lstm_states = predict_function(self.root.output, init_lstm_states=initial_lstm_states)
+        self.root.gmm, self.root.lstm_states = predict_function(self.root.output, init_lstm_states=initial_lstm_states) # Get the GMM for the root
         self.initial_lstm_states = initial_lstm_states
         self.predict_function = predict_function
         self.sample_function = sample_function
@@ -112,14 +95,7 @@ class MCTSPredictionTree:
         self.expansion_samples = expansion_samples
         self.snap_dp = snap_dp
 
-        self.selection_method = selection_method
-        # KR-AUCB parameters
-        self.kr_lambda_start = kr_lambda_start
-        self.kr_lambda_target = kr_lambda_target
-        self.kr_lambda_schedule_iters = kr_lambda_schedule_iters
-        self.kr_lambda = kr_lambda_start  # Current lambda value (will increase over time)
-
-        self.verbose = False  # Set to True for verbose output
+        self.verbose = verbose
 
     def set_root(self, new_root_output: np.ndarray) -> None:
         """Set the new root to the child of the current root with the given output"""
@@ -135,19 +111,25 @@ class MCTSPredictionTree:
     
     def search(self, 
                memory: List[np.ndarray], 
-               heuristic_functions: List[Tuple[Callable, Callable]],
-               time_limit_ms: int = 1000) -> Tuple[np.ndarray, List, float]:
+               heuristic_functions: List[Tuple[Callable, Callable, float]],
+               time_limit_ms: float = None,
+               max_iterations: int = None
+              ) -> Tuple[np.ndarray, List, float]:
         """
         Run MCTS for the given time limit and return the best branch found
         
         Args:
             memory: Initial sequence of notes prior to root node
-            heuristic_functions: Functions to evaluate a branch
-            time_limit_ms: Time limit in milliseconds
+            heuristic_functions: Functions to evaluate a branch, in tuples for memory, branch, and importance multiplier
+            time_limit_ms: Search time limit in milliseconds
+            iterations: Maximum number of iterations to run MCTS
             
         Returns:
             Tuple of (best_child, lstm states)
         """
+        # Check if at least one of time_limit_ms or max_iterations is provided
+        if time_limit_ms is None and max_iterations is None:
+            raise ValueError("Either time_limit_ms or max_iterations must be provided.")
         # Convert memory to numpy array if not already
         if isinstance(memory, list):
             memory = np.array(memory)
@@ -171,21 +153,21 @@ class MCTSPredictionTree:
         for heuristic_function in heuristic_functions:
             # Get the heuristic value for this function
             heuristic_memories.append(heuristic_function[0](memory))
-        #if heuristic_memories[0][3] > 0.05: # TODO For enforcing tempo to be used
-        #    # Sample random child from root
-        #    random_child = self.sample_function(self.root.gmm)
-        #    return (random_child, self.root.lstm_states)
 
         # Reset statistics
         self.nodes_searched = 0
         self.branches_simulated = 0
-        self.kr_lambda = self.kr_lambda_start
         
         # Set up time limit
+        if time_limit_ms is None:
+            time_limit_ms = 3600000 # Default to 1 hour
         end_time = time.time() + (time_limit_ms / 1000.0)
+        # Set up max iterations
+        if max_iterations is None:
+            max_iterations = 1000000 # Default to 1 million iterations
         
         # MCTS main loop
-        while time.time() < end_time:
+        while time.time() < end_time and self.branches_simulated < max_iterations:
             # Selection and Expansion
             if self.verbose:
                 print("Selecting and Expanding")
@@ -205,19 +187,9 @@ class MCTSPredictionTree:
                 print("Backpropagating")
             self._backpropagate(selected_node, simulation_result)
 
-            # Update lambda for KR-AUCB asymptotic policy
-            self.branches_simulated += 1
-            if self.selection_method == 'kr_aucb':
-                if self.branches_simulated <= self.kr_lambda_schedule_iters:
-                    progress = self.branches_simulated / self.kr_lambda_schedule_iters
-                    self.kr_lambda = self.kr_lambda_start + progress * (self.kr_lambda_target - self.kr_lambda_start)           
+            self.branches_simulated += 1        
         
         # Return best child after time is up, argmax over visits
-        # best child = argmax of self.root.children visits      
-        # Print all children, their average scores, and their best score
-        #print([child.output for child in self.root.children])               #TODO DELETE 
-        #print([child.visits for child in self.root.children])               #TODO DELETE
-        #print([child.value / child.visits for child in self.root.children]) #TODO DELETE
         best_child = self.root.most_visited_child()
         if self.verbose:
             print("Initial node:", self.root.output)
@@ -281,17 +253,48 @@ class MCTSPredictionTree:
                 is_original = True
                 originality_scores = []
                 for action in existing_actions:
-                    # Calculate per-dimension distances
-                    distances = np.abs(new_action - action)
+                    # Calculate per-dimension multiplicative distances (ratio between values)
+                    # We use max/min to ensure ratio is always >= 1.0
+                    ratios = np.maximum(new_action, action) / np.maximum(np.minimum(new_action, action), 1e-10)
+                    # Subtract 1 to get the actual multiplicative distance (e.g., 1.1x becomes 0.1)
+                    mult_distances = ratios - 1.0
                     
-                    # Action is not original if ALL dimensions are too close
-                    if np.all(distances < self.min_originality_distances):
+                    # Create a mask for dimensions where min_originality_distances is not None
+                    valid_dimensions = np.array([d is not None for d in self.min_originality_distances])
+                    
+                    # For None dimensions, we just check they're not exactly equal (distance > 0)
+                    none_dimensions = ~valid_dimensions
+                    if none_dimensions.any():
+                        none_dim_values_equal = np.isclose(mult_distances[none_dimensions], 0.0, atol=1e-10)
+                    
+                    # Check originality condition:
+                    # 1. For dimensions with min distance requirement: distance must be >= min_distance
+                    # 2. For dimensions with None: values must not be equal (distance > 0)
+                    if valid_dimensions.any():
+                        valid_dims_too_close = np.all(
+                            mult_distances[valid_dimensions] < np.array(self.min_originality_distances)[valid_dimensions]
+                        )
+                    else:
+                        valid_dims_too_close = False
+                        
+                    if none_dimensions.any():
+                        none_dims_all_equal = np.all(none_dim_values_equal)
+                    else:
+                        none_dims_all_equal = False
+
+                    # Action is not original if both conditions fail
+                    if (valid_dimensions.any() and valid_dims_too_close) and (not none_dimensions.any() or none_dims_all_equal):
                         is_original = False
                         break
-    
-                    # If it is original enough, calculate the originality score as the sum of multiples the distance is of the minimum
-                    originality_scores.append(np.sum(distances / self.min_originality_distances))
-                if is_original:
+                
+                    # Calculate originality score using only dimensions with actual minimum requirements
+                    if valid_dimensions.any():
+                        score = np.sum(
+                            mult_distances[valid_dimensions] / 
+                            np.array(self.min_originality_distances)[valid_dimensions]
+                        )
+                        originality_scores.append(score)
+                if is_original and originality_scores:
                     originality_score = np.min(originality_scores)
                     if originality_score > best_originality_score:
                         best_originality_score = originality_score
@@ -311,89 +314,6 @@ class MCTSPredictionTree:
                 if self.verbose:
                     print(f"Failed progressive widening: {node.failed_progressive_widening}")
                 break
-
-    def _kernel_function(self, a: np.ndarray, b: np.ndarray) -> float:
-        """
-        Gaussian kernel function: K(â,a) from Eq. (15)
-        
-        K(â,a) = exp(-0.5·(â-a)ᵀ·Σ⁻¹·(â-a)) / √((2π)^n|Σ|)
-        
-        For simplicity, we use a diagonal covariance matrix Σ = σ²I
-        """
-        # Calculate squared distance
-        d = np.sum((a - b) ** 2)
-        n = len(a)
-        
-        # Calculate kernel value
-        return np.exp(-0.5 * d) / np.sqrt((2 * np.pi) ** n)
-    
-    def _kr_aucb_selection(self, node: MCTSNode) -> Optional[MCTSNode]:
-        """
-        Select child using KR-AUCB formula (Eq. 17)
-        
-        arg max[E[v̄_â|â] + c·P_asym(â)·(√(∑W(a))/W(â))]
-        """
-        
-        # Get all actions, values, and visit counts for kernel regression
-        actions = np.array(node.get_all_actions())
-        values = np.array(node.get_all_values())
-        visits = np.array(node.get_all_visits())
-        
-        kr_aucb_values = []
-
-        print("KR-AUCB SELECTION FOR:", node.output)
-        
-        # Calculate KR-AUCB for each child
-        for child in node.children:
-            a_hat = child.output
-            print()
-            print(f"Calculating for Child: {child.output}")
-            
-            # Calculate kernel weights for all actions relative to this action
-            kernel_weights = np.array([self._kernel_function(a_hat, a) for a in actions])
-
-            for action in actions:
-                print(f"Action: {action}, Kernel weight: {self._kernel_function(a_hat, action)}, Value: {values[np.where((actions == action).all(axis=1))[0][0]]}, Visits: {visits[np.where((actions == action).all(axis=1))[0][0]]}")
-            
-            # Calculate E[v̄_â|â] using kernel regression (Eq. 13)
-            # E[v̄_â|â] = (∑_a K(â,a)·v̄_a·n_a) / (∑_a K(â,a)·n_a)
-            weighted_sum_values = np.sum(kernel_weights * values * visits)
-            sum_weights = np.sum(kernel_weights * visits)
-            expected_value = weighted_sum_values / sum_weights if sum_weights > 0 else 0
-            print(f"Expected value: {expected_value}")
-            
-            # Calculate W(â) using kernel density (Eq. 14)
-            # W(â) = ∑_a K(â,a)·n_a
-            effective_visits = np.sum(kernel_weights * visits)
-            print(f"Effective visits: {effective_visits}")
-            
-            # Calculate P_asym - asymptotic policy (Eq. 16)
-            # P_asym = λ·P_prior + (1-λ)·P_uniform
-            if hasattr(child, 'prior_prob') and child.prior_prob is not None:
-                # Use stored prior probability if available
-                p_prior = child.prior_prob
-            else:
-                # If prior not available, use equal weights (will be adjusted by GMM later)
-                p_prior = 1.0 / len(node.children)
-            
-            p_uniform = 1.0 / len(node.children)
-            p_asym = self.kr_lambda * p_prior + (1.0 - self.kr_lambda) * p_uniform
-            print(f"Lambda: {self.kr_lambda}, P_prior: {p_prior}, P_uniform: {p_uniform}, P_asym: {p_asym}")
-            
-            # Calculate exploration term
-            total_effective_visits = np.sum([np.sum([self._kernel_function(a, a_other) for a_other in actions] * visits) for a in actions])
-            exploration_term = self.exploration_weight * p_asym * np.sqrt(total_effective_visits) / effective_visits if effective_visits > 0 else float('inf')
-            print(f"Exploration constant: {self.exploration_weight}, Pasym: {p_asym}, Total effective visits: {total_effective_visits}, Exploration term: {exploration_term}")
-            
-            # Calculate KR-AUCB value (Eq. 17)
-            if self.verbose:
-                print(f"Child output: {child.output}, Exploitation: {expected_value}, Exploration: {exploration_term}")
-            kr_aucb_value = expected_value + exploration_term
-            kr_aucb_values.append(kr_aucb_value)
-        
-        # Return child with highest KR-AUCB value
-        print("FINAL KR-AUCB SELECTION: ", node.children[np.argmax(kr_aucb_values)].output)
-        return node.children[np.argmax(kr_aucb_values)]
     
     def _select_and_expand(self, node: MCTSNode) -> Tuple[MCTSNode, List[np.ndarray]]:
         """
@@ -411,18 +331,10 @@ class MCTSPredictionTree:
             # Check progressive widening condition
             self._check_progressive_widening(current)
                 
-            # Otherwise, select best child according to selection method\
-            if self.selection_method == 'uct':
-                if self.verbose:
-                    print("Selecting best child with UCT")
-                current = current.uct_child(self.greedy_weight, self.exploration_weight, verbose=self.verbose)
-            elif self.selection_method == 'kr_aucb':
-                # Use KR-AUCB selection method
-                if self.verbose:
-                    print("Selecting best child with KR-AUCB")
-                current = self._kr_aucb_selection(current)
-            else:
-                raise ValueError(f"Unknown selection method: {self.selection_method}")
+            # Otherwise, select best child according to uct
+            if self.verbose:
+                print("Selecting best child with UCT")
+            current = current.uct_child(self.greedy_weight, self.exploration_weight, verbose=self.verbose)
             if self.verbose:
                 print(f"Selected child: {current.output}")
             self.nodes_searched += 1
@@ -437,7 +349,7 @@ class MCTSPredictionTree:
         
         return current
     
-    def _simulate(self, selected_node: MCTSNode, memory: List[np.ndarray], heuristic_functions: List[Callable], heuristic_memories: List[Tuple]) -> float:
+    def _simulate(self, selected_node: MCTSNode, memory: List[np.ndarray], heuristic_functions: List[Tuple[Callable, Callable, float]], heuristic_memories: List[Tuple]) -> float:
         """
         Run a simulation from the given node to estimate its value
         """
@@ -475,7 +387,7 @@ class MCTSPredictionTree:
             heuristic_function = heuristic_functions[i]
             heuristic_memory = heuristic_memories[i]
             # Get the heuristic value for this function
-            function_value = heuristic_function[1](heuristic_memory, simulated_branch)
+            function_value = heuristic_function[1](heuristic_memory, simulated_branch, heuristic_function[2])
             if self.verbose:
                 print(f"Calculating heuristic value for function: {heuristic_function[1].__name__}")
                 print(f"Result: {function_value}")

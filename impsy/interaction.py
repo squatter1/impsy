@@ -324,6 +324,8 @@ class InteractionServer(object):
                 #    simulation_depth=3, 
                 #    exploration_weight=0.075,
                 #)
+                # For improv model use 0.15, 0.05, 1.0, 0.1, 0.2
+                # For nottingham model use 0.25, 0.3, 0.25, 0.25, 1.0
                 best_output = self.rnn_prediction_tree.search(
                     memory=self.rnn_output_memory[:-1],
                     heuristic_functions=[
@@ -332,23 +334,28 @@ class InteractionServer(object):
                         #heuristics.pitch_proximity_heuristic,
                         (
                             lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y: heuristics.key_and_modal_conformity_heuristic(x, y, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15)
+                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
+                            0.15
                         ),
                         (
                             heuristics.tempo_and_swing_memory, 
-                            lambda x, y: heuristics.tempo_and_swing_heuristic(x, y, max_tempo_deviation=0.08)
+                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
+                            0.05
                         ),
                         (
                             lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y: heuristics.interval_markov_heuristic(x, y)
+                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
+                            1.0
                         ),
                         (
                             lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y: heuristics.time_multiple_markov_heuristic(x, y)
+                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
+                            0.1
                         ),
                         (
                             lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y: heuristics.repetition_markov_heuristic(x, y)
+                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
+                            0.2
                         ),
                     ],
                     time_limit_ms=100
