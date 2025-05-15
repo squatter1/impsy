@@ -143,7 +143,7 @@ def key_and_modal_memory(memory: np.ndarray, min_key_conformity: float = 0.7) ->
         return memory_conformity, memory_scale, memory_root, memory_mode_conformity, memory_mode, min_key_conformity
     return memory_conformity, memory_scale, memory_root, -1, None, min_key_conformity
 
-def key_and_modal_conformity_heuristic(memory_tuple: np.ndarray, branch: np.ndarray, min_mode_conformity: float = 0.25, mode_divisor: float = 6.0, mode_max: float = 0.15) -> float:
+def key_and_modal_conformity_heuristic(memory_tuple: np.ndarray, branch: np.ndarray, multiplier: float = 1.0, min_mode_conformity: float = 0.25, mode_divisor: float = 6.0, mode_max: float = 0.15) -> float:
     memory_conformity, memory_scale, memory_root, memory_mode_conformity, memory_mode, min_key_conformity = memory_tuple
     if memory_scale is None:
         # Chromatic scale, don't use key conformity as a heuristic
@@ -157,18 +157,18 @@ def key_and_modal_conformity_heuristic(memory_tuple: np.ndarray, branch: np.ndar
     # If no memory mode, only use key conformity
     if memory_mode_conformity < min_mode_conformity:
         # Not enough memory to establish a mode
-        return (abs(branch_conformity - memory_conformity) / 2 + mode_max / 2) / 2
+        return (abs(branch_conformity - memory_conformity) / 2 + mode_max / 2) * 3.3 * multiplier
 
     # If branch_conformity < min_key_conformity, no point in calculating mode conformity, assume it is bad (as it will be calculated for other branches)
     if branch_conformity < min_key_conformity and abs(branch_conformity - memory_conformity) > 1 - min_key_conformity:
         # Not enough memory to establish a key
-        return (abs(branch_conformity - memory_conformity) / 2 + mode_max) / 2
+        return (abs(branch_conformity - memory_conformity) / 2 + mode_max) * 3.3 * multiplier
 
     # Calculate conformity of the branch to the memory mode
     branch_mode_conformity = memory_scale.mode_conformity(branch, memory_root, memory_mode)
 
     # Return the difference between the branch conformity and the memory conformity for key and mode
-    return (abs(branch_conformity - memory_conformity) / 2 + min(abs(branch_mode_conformity - memory_mode_conformity) / mode_divisor, mode_max)) / 2
+    return (abs(branch_conformity - memory_conformity) / 2 + min(abs(branch_mode_conformity - memory_mode_conformity) / mode_divisor, mode_max)) * 3.3 * multiplier
 
 #############################
 # TEMPO AND SWING HEURISTIC #
@@ -265,7 +265,7 @@ def tempo_and_swing_memory(memory: np.ndarray) -> Tuple:
     memory_tempo, memory_swing_name, memory_swing_duration, average_deviation = estimate_tempo_and_swing(memory_durations)
     return (memory_tempo, memory_swing_name, memory_swing_duration, average_deviation)
 
-def tempo_and_swing_heuristic(memory_tuple: np.ndarray, branch: np.ndarray, 
+def tempo_and_swing_heuristic(memory_tuple: np.ndarray, branch: np.ndarray, multiplier: float = 1.0, 
                               max_tempo_deviation: float = 0.08) -> float:
     """
     Calculate heuristic based on tempo and swing deviation from memory.
@@ -285,7 +285,7 @@ def tempo_and_swing_heuristic(memory_tuple: np.ndarray, branch: np.ndarray,
         return 0
 
     # In this case, we assume a tempo and swing, and just want to return the deviation from that established tempo and swing.
-    return tempo_conformity * (branch_average_deviation - average_deviation)
+    return tempo_conformity * (branch_average_deviation - average_deviation) * 20 * multiplier
 
 #############################
 # INTERVAL MARKOV HEURISTIC #
@@ -338,7 +338,7 @@ def interval_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
     
     return model_dict, order, total_transitions, True, pitches[-order:]
 
-def interval_markov_heuristic(memory_model: Tuple, branch: np.ndarray, smoothing: float = 0.1) -> float:
+def interval_markov_heuristic(memory_model: Tuple, branch: np.ndarray, multiplier: float = 1.0, smoothing: float = 0.1) -> float:
     """
     Calculate how well the branch conforms to the interval Markov model from memory.
     
@@ -392,7 +392,7 @@ def interval_markov_heuristic(memory_model: Tuple, branch: np.ndarray, smoothing
     avg_probability = np.mean(probabilities)
 
     # Return 1 - avg_probability as the heuristic (higher value = worse conformity)
-    return (1.0 - avg_probability) * 2 #TODO: move to actual heuristic multiplier section
+    return (1.0 - avg_probability) * 2 * multiplier
 
 ##################################
 # TIME MULTIPLE MARKOV HEURISTIC #
@@ -458,7 +458,7 @@ def time_multiple_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
     
     return model_dict, order, total_transitions, True, last_intervals
 
-def time_multiple_markov_heuristic(memory_model: Tuple, branch: np.ndarray, smoothing: float = 0.1) -> float:
+def time_multiple_markov_heuristic(memory_model: Tuple, branch: np.ndarray, multiplier: float = 1.0, smoothing: float = 0.1) -> float:
     """
     Calculate how well the branch conforms to the time multiple Markov model from memory.
     
@@ -526,7 +526,7 @@ def time_multiple_markov_heuristic(memory_model: Tuple, branch: np.ndarray, smoo
     avg_probability = np.mean(probabilities)
 
     # Return 1 - avg_probability as the heuristic (higher value = worse conformity)
-    return (1.0 - avg_probability) / 5
+    return (1.0 - avg_probability) * 2 * multiplier
 
 ########################
 # REPETITION HEURISTIC #
@@ -607,7 +607,7 @@ def repetition_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
 
     return model_dict, order, total_transitions, True, last_pitches, last_intervals
 
-def repetition_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> float:
+def repetition_markov_heuristic(memory_model: Tuple, branch: np.ndarray, multiplier: float = 1.0) -> float:
     """
     Calculate how well the branch conforms to the combined pitch interval and time multiple
     Markov model from memory.
@@ -684,7 +684,7 @@ def repetition_markov_heuristic(memory_model: Tuple, branch: np.ndarray) -> floa
     avg_probability = np.mean(probabilities)
     
     # Return 1 - avg_probability as the heuristic (higher value = worse conformity)
-    return 1.0 - avg_probability
+    return (1.0 - avg_probability) * 5 * multiplier
 
 ######################################################
 # TESTING HEURISTICS (not used in the final version) #
