@@ -304,8 +304,43 @@ class InteractionServer(object):
                         initial_lstm_states=neural_net.get_lstm_states(),
                         predict_function=neural_net.generate_gmm, 
                         sample_function=neural_net.sample_gmm,
-                        simulation_depth=1, 
+                        initial_memory=self.rnn_output_memory,
+                        heuristic_functions=[
+                            (
+                                lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
+                                lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
+                                0.15
+                            ),
+                            (
+                                heuristics.tempo_and_swing_memory, 
+                                lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
+                                0.05
+                            ),
+                            (
+                                lambda x: heuristics.interval_markov_memory(x, order=1),
+                                lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
+                                1.0
+                            ),
+                            (
+                                lambda x: heuristics.time_multiple_markov_memory(x, order=1),
+                                lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
+                                0.1
+                            ),
+                            (
+                                lambda x: heuristics.repetition_markov_memory(x, order=2),
+                                lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
+                                0.2
+                            ),
+                        ],
+                        simulation_depth=2,
+                        greedy_weight=0.4,
                         exploration_weight=0.1,
+                        progressive_widening_k=2.5,
+                        progressive_widening_alpha=0.25,
+                        min_originality_distances=np.array([0.08, None]),
+                        expansion_samples=10,
+                        max_progressive_widening=5,
+                        snap_dp=[None, 2],
                     )
                 else:
                     # We are not in the first iteration (which is a repeat item) so we can safely modify our output memory
@@ -328,36 +363,6 @@ class InteractionServer(object):
                 # For nottingham model use 0.25, 0.3, 0.25, 0.25, 1.0
                 best_output = self.rnn_prediction_tree.search(
                     memory=self.rnn_output_memory[:-1],
-                    heuristic_functions=[
-                        #heuristics.pitch_height_heuristic,
-                        #heuristics.pitch_range_heuristic,
-                        #heuristics.pitch_proximity_heuristic,
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.15
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.05
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.1
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            0.2
-                        ),
-                    ],
                     time_limit_ms=100
                 )
                 

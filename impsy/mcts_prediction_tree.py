@@ -72,6 +72,8 @@ class MCTSPredictionTree:
                  initial_lstm_states: np.ndarray,
                  predict_function: Callable, 
                  sample_function: Callable,
+                 initial_memory: List[np.ndarray], 
+                 heuristic_functions: List[Tuple[Callable, Callable, float]],
                  simulation_depth: int = 2, 
                  greedy_weight: float = 0.5,
                  exploration_weight: float = 1.0,
@@ -79,6 +81,7 @@ class MCTSPredictionTree:
                  progressive_widening_alpha: float = 0.25,
                  min_originality_distances: np.ndarray = np.array([0.08, None]),
                  expansion_samples: int = 10,
+                 max_progressive_widening: int = 5,
                  snap_dp: [Optional[int]] = [None, 2],
                  verbose: bool = False):
         self.root = MCTSNode(root_output, snap_dp=snap_dp)
@@ -86,6 +89,8 @@ class MCTSPredictionTree:
         self.initial_lstm_states = initial_lstm_states
         self.predict_function = predict_function
         self.sample_function = sample_function
+        self.initial_memory = initial_memory
+        self.heuristic_functions = heuristic_functions
         self.simulation_depth = simulation_depth
         self.greedy_weight = greedy_weight
         self.exploration_weight = exploration_weight
@@ -93,9 +98,32 @@ class MCTSPredictionTree:
         self.progressive_widening_alpha = progressive_widening_alpha
         self.min_originality_distances = min_originality_distances
         self.expansion_samples = expansion_samples
+        self.max_progressive_widening = max_progressive_widening
         self.snap_dp = snap_dp
 
         self.verbose = verbose
+
+        # Convert initial memory to numpy array if not already
+        if isinstance(self.initial_memory, list):
+            self.initial_memory = np.array(self.initial_memory)
+        # Apply snapping to the initial memory if enabled
+        for i in range(len(self.initial_memory)):
+            self.initial_memory[i] = np.array(self.initial_memory[i])
+            for j in range(len(self.initial_memory[i])):
+                if self.snap_dp[j] is not None:
+                    # If j is 1, aka pitch, convert to semitones first
+                    if j == 1:
+                        self.initial_memory[i][j] *= 1.27
+                    self.initial_memory[i][j] = np.round(self.initial_memory[i][j], self.snap_dp[j])
+                    # If j is 1, aka pitch, convert back
+                    if j == 1:
+                        self.initial_memory[i][j] /= 1.27
+        
+        # Get heuristic values for the memory
+        self.heuristic_memories = []
+        for heuristic_function in heuristic_functions:
+            # Get the heuristic value for this function
+            self.heuristic_memories.append(heuristic_function[0](self.initial_memory))
 
     def set_root(self, new_root_output: np.ndarray) -> None:
         """Set the new root to the child of the current root with the given output"""
@@ -111,7 +139,6 @@ class MCTSPredictionTree:
     
     def search(self, 
                memory: List[np.ndarray], 
-               heuristic_functions: List[Tuple[Callable, Callable, float]],
                time_limit_ms: float = None,
                max_iterations: int = None
               ) -> Tuple[np.ndarray, List, float]:
@@ -120,7 +147,6 @@ class MCTSPredictionTree:
         
         Args:
             memory: Initial sequence of notes prior to root node
-            heuristic_functions: Functions to evaluate a branch, in tuples for memory, branch, and importance multiplier
             time_limit_ms: Search time limit in milliseconds
             iterations: Maximum number of iterations to run MCTS
             
@@ -147,12 +173,6 @@ class MCTSPredictionTree:
                         memory[i][j] /= 1.27
         if self.verbose:
             print("Starting MCTS search with memory: ", memory)
-        
-        # Get heuristic values for the memory
-        heuristic_memories = []
-        for heuristic_function in heuristic_functions:
-            # Get the heuristic value for this function
-            heuristic_memories.append(heuristic_function[0](memory))
 
         # Reset statistics
         self.nodes_searched = 0
@@ -178,7 +198,7 @@ class MCTSPredictionTree:
             # Simulation
             if self.verbose:
                 print("Simulating")
-            simulation_result = self._simulate(selected_node, memory, heuristic_functions, heuristic_memories)
+            simulation_result = self._simulate(selected_node, memory)
             if self.verbose:
                 print(f"Simulation result: {simulation_result}")
             
@@ -205,7 +225,7 @@ class MCTSPredictionTree:
         Uses per-dimension originality constraints - action is original if at least one dimension
         meets the required distance.
         """
-        if node.gmm is None or node.failed_progressive_widening >= 5:
+        if node.gmm is None or node.failed_progressive_widening >= self.max_progressive_widening:
             return
             
         max_actions = max(1, int(self.progressive_widening_k * (node.visits ** self.progressive_widening_alpha)))
@@ -349,7 +369,7 @@ class MCTSPredictionTree:
         
         return current
     
-    def _simulate(self, selected_node: MCTSNode, memory: List[np.ndarray], heuristic_functions: List[Tuple[Callable, Callable, float]], heuristic_memories: List[Tuple]) -> float:
+    def _simulate(self, selected_node: MCTSNode, memory: List[np.ndarray]) -> float:
         """
         Run a simulation from the given node to estimate its value
         """
@@ -383,9 +403,9 @@ class MCTSPredictionTree:
 
         # Calculate heuristic value for the simulated branch
         heuristic_value = 0.0
-        for i in range(len(heuristic_functions)):
-            heuristic_function = heuristic_functions[i]
-            heuristic_memory = heuristic_memories[i]
+        for i in range(len(self.heuristic_functions)):
+            heuristic_function = self.heuristic_functions[i]
+            heuristic_memory = self.heuristic_memories[i]
             # Get the heuristic value for this function
             function_value = heuristic_function[1](heuristic_memory, simulated_branch, heuristic_function[2])
             if self.verbose:

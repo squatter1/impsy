@@ -2,6 +2,7 @@ import click
 import numpy as np
 from pathlib import Path
 import datetime
+import time
 import mdrnn
 import heuristics
 from typing import Callable, Optional, Tuple
@@ -60,7 +61,8 @@ class MCTSEvaluator:
             click.secho(f"Warning: Mismatch in durations ({len(durations)}) and sequence ({len(sequence)}) lengths", fg="yellow")
             return np.array([])
     
-    def evaluate_model(self, model_file: Path, log_file: Path, init_memory_length: int = 25, heuristics: Optional[Tuple[Callable, Callable]] = None, use_duration_match: bool = True, use_pitch_match: bool = True) -> float:
+    def evaluate_model(self, model_file: Path, log_file: Path, init_memory_length: int = 25, heuristics: Optional[Tuple[Callable, Callable]] = None
+                           , use_duration_match: bool = True, use_pitch_match: bool = True, simulation_depth: int = 2, greedy_weight: float = 0.4, exploration_weight: float = 0.1) -> float:
         """Evaluate a model against a log file and return accuracy."""
         # Load the model
         neural_net = self.load_model(model_file)
@@ -74,6 +76,7 @@ class MCTSEvaluator:
         
         # Set up evaluation
         total_predictions = len(sequence_data) - init_memory_length - 1
+        total_prediction_time = 0.0
         correct_predictions = 0
         correct_predictions_mdrnn = 0
         
@@ -97,18 +100,28 @@ class MCTSEvaluator:
             prediction_tree = MCTSPredictionTree(
                 root_output=item,
                 initial_lstm_states=neural_net.get_lstm_states(),
-                predict_function=neural_net.generate_gmm,
+                predict_function=neural_net.generate_gmm, 
                 sample_function=neural_net.sample_gmm,
-                simulation_depth=2,
-                exploration_weight=0.1,
+                initial_memory=rnn_output_memory[:-1],
+                heuristic_functions=heuristics,
+                simulation_depth=simulation_depth,
+                greedy_weight=greedy_weight,
+                exploration_weight=exploration_weight,
+                progressive_widening_k=2.5,
+                progressive_widening_alpha=0.25,
+                min_originality_distances=np.array([0.08, None]),
+                expansion_samples=10,
+                max_progressive_widening=5,
+                snap_dp=[None, 2],
             )
             
             # Run search
+            start = time.time()
             best_output = prediction_tree.search(
                 memory=rnn_output_memory[:-1],  # Copy of memory up to this point
-                heuristic_functions=heuristics,
                 time_limit_ms=100,
             )[0] 
+            total_prediction_time += time.time() - start
             
             # Check if prediction matches actual next item
             # Duration match if the absolute difference in the multiple of the pitches is less than 0.1
@@ -140,15 +153,17 @@ class MCTSEvaluator:
             # Remove the first item to keep memory length constant
             rnn_output_memory.pop(0)
 
-        return total_predictions, correct_predictions, correct_predictions_mdrnn
+        return total_predictions, correct_predictions, correct_predictions_mdrnn, total_prediction_time
     
-    def run_evaluation(self, models_dir: Path, logs_dir: Path, heuristics: Optional[Tuple[Callable, Callable]] = None, use_duration_match: bool = True, use_pitch_match: bool = True, init_memory_length: int = 40):
+    def run_evaluation(self, models_dir: Path, logs_dir: Path, heuristics: Optional[Tuple[Callable, Callable]] = None, use_duration_match: bool = True
+                           , use_pitch_match: bool = True, init_memory_length: int = 40, simulation_depth: int = 2, greedy_weight: float = 0.4, exploration_weight: float = 0.1):
         """Run evaluation on all model and log file pairs."""
         # Find all .tflite model files
         model_files = sorted(models_dir.glob("*.tflite"))
         log_files = sorted(logs_dir.glob("*.log"))
         
         grand_total_predictions = 0
+        grant_total_prediction_time = 0.0
         grand_correct_predictions = 0
         grand_correct_predictions_mdrnn = 0
         if len(model_files) > 1:
@@ -162,8 +177,9 @@ class MCTSEvaluator:
                     continue
                 
                 click.secho(f"Evaluating model {model_num}...", fg="cyan")
-                total_predictions, correct_predictions, correct_predictions_mdrnn = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length)
+                total_predictions, correct_predictions, correct_predictions_mdrnn, total_prediction_time = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length, simulation_depth=simulation_depth, greedy_weight=greedy_weight, exploration_weight=exploration_weight)
                 grand_total_predictions += total_predictions
+                grant_total_prediction_time += total_prediction_time
                 grand_correct_predictions += correct_predictions
                 grand_correct_predictions_mdrnn += correct_predictions_mdrnn
                 accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0.0
@@ -178,8 +194,9 @@ class MCTSEvaluator:
                 log_num = log_file.stem.split('-')[0]
                 
                 click.secho(f"Evaluating log {log_num}...", fg="cyan")
-                total_predictions, correct_predictions, correct_predictions_mdrnn = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length)
+                total_predictions, correct_predictions, correct_predictions_mdrnn, total_prediction_time = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length, simulation_depth=simulation_depth, greedy_weight=greedy_weight, exploration_weight=exploration_weight)
                 grand_total_predictions += total_predictions
+                grant_total_prediction_time += total_prediction_time
                 grand_correct_predictions += correct_predictions
                 grand_correct_predictions_mdrnn += correct_predictions_mdrnn
                 accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0.0
@@ -195,6 +212,7 @@ class MCTSEvaluator:
         click.secho(f"\nGrand total accuracy: {grand_correct_predictions}/{grand_total_predictions} ({grand_total_accuracy:.2%})", fg="magenta")
         grand_total_accuracy_mdrnn = grand_correct_predictions_mdrnn / grand_total_predictions if grand_total_predictions > 0 else 0.0
         click.secho(f"Grand total accuracy (MDRNN): {grand_correct_predictions_mdrnn}/{grand_total_predictions} ({grand_total_accuracy_mdrnn:.2%})", fg="magenta")
+        click.secho(f"Average prediction time: {1000 * grant_total_prediction_time / grand_total_predictions:.2f} ms", fg="magenta")
         click.secho(f"Evaluation complete!", fg="magenta")
 
 
@@ -218,8 +236,6 @@ def main(models_dir, logs_dir):
         evaluator = MCTSEvaluator()
 
     # For improv model use 0.15, 0.05, 1.0, 0.1, 0.2
-    # For nottingham model use 0.25, 0.3, 0.25, 0.25, 1.0
-
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
                         (
                             lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
@@ -247,38 +263,40 @@ def main(models_dir, logs_dir):
                             0.2
                         ),
     ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.25
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.3
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-    ])
+    # For nottingham model use 0.25, 0.3, 0.25, 0.25, 1.0
+    #evaluator.run_evaluation(models_path, logs_path, heuristics=[
+    #                    (
+    #                        lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
+    #                        lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
+    #                        0.25
+    #                    ),
+    #                    (
+    #                        heuristics.tempo_and_swing_memory, 
+    #                        lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
+    #                        0.3
+    #                    ),
+    #                    (
+    #                        lambda x: heuristics.interval_markov_memory(x, order=1),
+    #                        lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
+    #                        0.25
+    #                    ),
+    #                    (
+    #                        lambda x: heuristics.time_multiple_markov_memory(x, order=1),
+    #                        lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
+    #                        0.25
+    #                    ),
+    #                    (
+    #                        lambda x: heuristics.repetition_markov_memory(x, order=2),
+    #                        lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
+    #                        1.0
+    #                    ),
+    #])
 
     click.secho("All evaluations complete!", fg="magenta", bold=True)
 
 
 if __name__ == "__main__":
     #main('eval_models', 'eval_logs')
-    #main('eval_models_shortened', 'eval_logs_shortened')
-    main('eval_models_nottingham', 'eval_logs_nottingham')
+    main('eval_models_shortened', 'eval_logs_shortened')
+    #main('eval_models_nottingham', 'eval_logs_nottingham')
+    #main('eval_models_shortened_nottingham', 'eval_logs_shortened_nottingham')
