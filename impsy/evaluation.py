@@ -185,28 +185,49 @@ class MCTSEvaluator:
         """Run evaluation on all model and log file pairs."""
         # Find all .tflite model files
         model_files = sorted(models_dir.glob("*.tflite"))
+        log_files = sorted(logs_dir.glob("*.log"))
         
         grand_total_predictions = 0
         grand_correct_predictions = 0
         grand_correct_predictions_mdrnn = 0
-        for model_file in model_files:
-            # Split the model stem by '-' and take the first part as model number
-            model_num = model_file.stem.split('-')[0]
-            log_file = logs_dir / f"{model_num}-{self.dimension}d-mdrnn.log"
-            
-            if not log_file.exists():
-                click.secho(f"Log file not found: {log_file}", fg="red")
-                continue
-            
-            click.secho(f"Evaluating model {model_num}...", fg="cyan")
-            total_predictions, correct_predictions, correct_predictions_mdrnn = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length)
-            grand_total_predictions += total_predictions
-            grand_correct_predictions += correct_predictions
-            grand_correct_predictions_mdrnn += correct_predictions_mdrnn
-            accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0.0
-            accuracy_mdrnn = correct_predictions_mdrnn / total_predictions if total_predictions > 0 else 0.0
-            click.secho(f"Model {model_num} accuracy: {correct_predictions}/{total_predictions} ({accuracy:.2%})", fg="green")
-            click.secho(f"Model {model_num} accuracy (MDRNN): {correct_predictions_mdrnn}/{total_predictions} ({accuracy_mdrnn:.2%})", fg="green")
+        if len(model_files) > 1:
+            for model_file in model_files:
+                # Split the model stem by '-' and take the first part as model number
+                model_num = model_file.stem.split('-')[0]
+                log_file = logs_dir / f"{model_num}-{self.dimension}d-mdrnn.log"
+                
+                if not log_file.exists():
+                    click.secho(f"Log file not found: {log_file}", fg="red")
+                    continue
+                
+                click.secho(f"Evaluating model {model_num}...", fg="cyan")
+                total_predictions, correct_predictions, correct_predictions_mdrnn = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length)
+                grand_total_predictions += total_predictions
+                grand_correct_predictions += correct_predictions
+                grand_correct_predictions_mdrnn += correct_predictions_mdrnn
+                accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0.0
+                accuracy_mdrnn = correct_predictions_mdrnn / total_predictions if total_predictions > 0 else 0.0
+                click.secho(f"Model {model_num} accuracy: {correct_predictions}/{total_predictions} ({accuracy:.2%})", fg="green")
+                click.secho(f"Model {model_num} accuracy (MDRNN): {correct_predictions_mdrnn}/{total_predictions} ({accuracy_mdrnn:.2%})", fg="green")
+        elif len(model_files) == 1:
+            # We are using a single model for all log files, iterate through all log files
+            for log_file in log_files:
+                # We only have one model, so grab from the first model file
+                model_file = model_files[0]
+                log_num = log_file.stem.split('-')[0]
+                
+                click.secho(f"Evaluating log {log_num}...", fg="cyan")
+                total_predictions, correct_predictions, correct_predictions_mdrnn = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length)
+                grand_total_predictions += total_predictions
+                grand_correct_predictions += correct_predictions
+                grand_correct_predictions_mdrnn += correct_predictions_mdrnn
+                accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0.0
+                accuracy_mdrnn = correct_predictions_mdrnn / total_predictions if total_predictions > 0 else 0.0
+                click.secho(f"Log {log_num} accuracy: {correct_predictions}/{total_predictions} ({accuracy:.2%})", fg="green")
+                click.secho(f"Log {log_num} accuracy (MDRNN): {correct_predictions_mdrnn}/{total_predictions} ({accuracy_mdrnn:.2%})", fg="green")
+        else:
+            click.secho(f"No model files found in {models_dir}", fg="red")
+            return
 
         # Print grand totals and grand total accuracy
         grand_total_accuracy = grand_correct_predictions / grand_total_predictions if grand_total_predictions > 0 else 0.0
@@ -220,59 +241,33 @@ def main(models_dir, logs_dir):
     """Evaluate MCTS prediction accuracy for multiple models against their respective log files."""
     models_path = Path(models_dir)
     logs_path = Path(logs_dir)
-    
-    evaluator = MCTSEvaluator()
-    #evaluator.run_evaluation(models_path, logs_path, heuristic=heuristics.pitch_height_heuristic, use_duration_match=False, use_pitch_match=True)
-    #evaluator.run_evaluation(models_path, logs_path, heuristic=heuristics.pitch_range_heuristic, use_duration_match=False, use_pitch_match=True)
-    #evaluator.run_evaluation(models_path, logs_path, heuristic=heuristics.pitch_proximity_heuristic, use_duration_match=False, use_pitch_match=True)
-    #evaluator.run_evaluation(models_path, logs_path, 
-    #                         heuristic=(
-    #                             lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-    #                             lambda x, y: heuristics.key_and_modal_conformity_heuristic(x, y, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15)
-    #                         ), 
-    #                         use_duration_match=False, use_pitch_match=True, init_memory_length=25)
-    #evaluator.run_evaluation(models_path, logs_path, heuristic=(heuristics.tempo_and_swing_memory, heuristics.tempo_and_swing_heuristic),
-    #                         use_duration_match=True, use_pitch_match=False, init_memory_length=15)
 
-    #evaluator.run_evaluation(models_path, logs_path, 
-    #                         heuristic=(
-    #                             lambda x: heuristics.interval_markov_memory(x, order=1),
-    #                             lambda x, y: heuristics.interval_markov_heuristic(x, y, smoothing=0.0)
-    #                         ), 
-    #                         use_duration_match=False, use_pitch_match=True, init_memory_length=25)
-    #evaluator.run_evaluation(models_path, logs_path, 
-    #                         heuristic=(
-    #                             lambda x: heuristics.interval_markov_memory(x, order=1),
-    #                             lambda x, y: heuristics.interval_markov_heuristic(x, y, smoothing=0.05)
-    #                         ), 
-    #                         use_duration_match=False, use_pitch_match=True, init_memory_length=25)
-    #evaluator.run_evaluation(models_path, logs_path, 
-    #                         heuristic=(
-    #                             lambda x: heuristics.interval_markov_memory(x, order=1),
-    #                             lambda x, y: heuristics.interval_markov_heuristic(x, y, smoothing=0.1)
-    #                         ), 
-    #                         use_duration_match=False, use_pitch_match=True, init_memory_length=25)
-    #evaluator.run_evaluation(models_path, logs_path, 
-    #                         heuristic=(
-    #                             lambda x: heuristics.interval_markov_memory(x, order=1),
-    #                             lambda x, y: heuristics.interval_markov_heuristic(x, y, smoothing=0.2)
-    #                         ), 
-    #                         use_duration_match=False, use_pitch_match=True, init_memory_length=25)
-    
-    #evaluator.run_evaluation(models_path, logs_path, 
-    #                         heuristic=(
-    #                             lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-    #                             lambda x, y: heuristics.time_multiple_markov_heuristic(x, y, smoothing=0.1)
-    #                         ), 
-    #                         use_duration_match=True, use_pitch_match=False, init_memory_length=25)
+    # Get the name of the first model file in the models directory
+    model_file = next(models_path.glob("*.tflite"), None)
+    if model_file:
+        # Split by '-', the [2] is 'dim{dimension}', [3] is 'layers{layers}' the [4] is 'units{units}', the [5] is 'mixtures{mixtures}'
+        model_name = model_file.stem.split('-')[2:6]
+        dimension = int(model_name[0][3:])
+        layers = int(model_name[1][6:])
+        units = int(model_name[2][5:])
+        mixtures = int(model_name[3][8:])
+        print(f"Model params found: Dim: {dimension}, Layers: {layers}, Units: {units}, Mixtures: {mixtures}")
+        evaluator = MCTSEvaluator(dimension=dimension, units=units, mixtures=mixtures, layers=layers)
+    else:
+        evaluator = MCTSEvaluator()
 
-    #evaluator.run_evaluation(models_path, logs_path, 
-    #                         heuristic=(
-    #                             lambda x: heuristics.repetition_markov_memory(x, order=2),
-    #                             lambda x, y: heuristics.repetition_markov_heuristic(x, y)
-    #                         ), 
-    #                         use_duration_match=True, use_pitch_match=True, init_memory_length=25)
-
+    evaluator.run_evaluation(models_path, logs_path, heuristics=[
+                        (
+                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
+                            lambda x, y: heuristics.key_and_modal_conformity_heuristic(x, y, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15)
+                        ),
+    ])
+    evaluator.run_evaluation(models_path, logs_path, heuristics=[
+                        (
+                            heuristics.tempo_and_swing_memory, 
+                            lambda x, y: heuristics.tempo_and_swing_heuristic(x, y, max_tempo_deviation=0.08)
+                        ),
+    ])
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
                         (
                             lambda x: heuristics.interval_markov_memory(x, order=1),
@@ -280,42 +275,12 @@ def main(models_dir, logs_dir):
                         ),
     ])
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y: heuristics.key_and_modal_conformity_heuristic(x, y, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15)
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y: heuristics.interval_markov_heuristic(x, y)
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y: heuristics.key_and_modal_conformity_heuristic(x, y, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15)
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y: heuristics.interval_markov_heuristic(x, y)
-                        ),
                         (
                             lambda x: heuristics.time_multiple_markov_memory(x, order=1),
                             lambda x, y: heuristics.time_multiple_markov_heuristic(x, y)
                         ),
     ])
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y: heuristics.key_and_modal_conformity_heuristic(x, y, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15)
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y: heuristics.interval_markov_heuristic(x, y)
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y: heuristics.time_multiple_markov_heuristic(x, y)
-                        ),
                         (
                             lambda x: heuristics.repetition_markov_memory(x, order=2),
                             lambda x, y: heuristics.repetition_markov_heuristic(x, y)
@@ -351,4 +316,6 @@ def main(models_dir, logs_dir):
 
 
 if __name__ == "__main__":
-    main('eval_models_shortened', 'eval_logs_shortened')
+    #main('eval_models', 'eval_logs')
+    #main('eval_models_shortened', 'eval_logs_shortened')
+    main('eval_models_nottingham', 'eval_logs_nottingham')

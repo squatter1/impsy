@@ -334,18 +334,27 @@ class InteractionServer(object):
                             lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
                             lambda x, y: heuristics.key_and_modal_conformity_heuristic(x, y, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15)
                         ),
-                        #(heuristics.tempo_and_swing_memory, heuristics.tempo_and_swing_heuristic),
-                        #(lambda x: heuristics.interval_markov_memory(x, order=1), heuristics.interval_markov_heuristic),
-                        #(lambda x: heuristics.time_multiple_markov_memory(x, order=1), heuristics.time_multiple_markov_heuristic),
-                        #(lambda x: heuristics.repetition_markov_memory(x, order=2), heuristics.repetition_markov_heuristic),
+                        (
+                            heuristics.tempo_and_swing_memory, 
+                            lambda x, y: heuristics.tempo_and_swing_heuristic(x, y, max_tempo_deviation=0.08)
+                        ),
+                        (
+                            lambda x: heuristics.interval_markov_memory(x, order=1),
+                            lambda x, y: heuristics.interval_markov_heuristic(x, y)
+                        ),
+                        (
+                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
+                            lambda x, y: heuristics.time_multiple_markov_heuristic(x, y)
+                        ),
+                        (
+                            lambda x: heuristics.repetition_markov_memory(x, order=2),
+                            lambda x, y: heuristics.repetition_markov_heuristic(x, y)
+                        ),
                     ],
-                    time_limit_ms=10000
+                    time_limit_ms=100
                 )
-                print(best_output[0])
-                print("SLEEPING")
-                time.sleep(1000)
                 
-                #print("OUTPUT:", best_output[0])
+                print("OUTPUT:", best_output[0])
 
 
                 ############################

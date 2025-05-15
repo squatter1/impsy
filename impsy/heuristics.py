@@ -157,18 +157,18 @@ def key_and_modal_conformity_heuristic(memory_tuple: np.ndarray, branch: np.ndar
     # If no memory mode, only use key conformity
     if memory_mode_conformity < min_mode_conformity:
         # Not enough memory to establish a mode
-        return abs(branch_conformity - memory_conformity) / 2 + mode_max / 2
+        return (abs(branch_conformity - memory_conformity) / 2 + mode_max / 2) / 2
 
     # If branch_conformity < min_key_conformity, no point in calculating mode conformity, assume it is bad (as it will be calculated for other branches)
     if branch_conformity < min_key_conformity and abs(branch_conformity - memory_conformity) > 1 - min_key_conformity:
         # Not enough memory to establish a key
-        return abs(branch_conformity - memory_conformity) / 2 + mode_max 
+        return (abs(branch_conformity - memory_conformity) / 2 + mode_max) / 2
 
     # Calculate conformity of the branch to the memory mode
     branch_mode_conformity = memory_scale.mode_conformity(branch, memory_root, memory_mode)
 
     # Return the difference between the branch conformity and the memory conformity for key and mode
-    return abs(branch_conformity - memory_conformity) / 2 + min(abs(branch_mode_conformity - memory_mode_conformity) / mode_divisor, mode_max)
+    return (abs(branch_conformity - memory_conformity) / 2 + min(abs(branch_mode_conformity - memory_mode_conformity) / mode_divisor, mode_max)) / 2
 
 #############################
 # TEMPO AND SWING HEURISTIC #
