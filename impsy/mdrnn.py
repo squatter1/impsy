@@ -326,6 +326,8 @@ class MDRNNInferenceModel(abc.ABC):
         n_hidden_units: int,
         n_mixtures: int,
         n_layers: int,
+        pi_temp: float = 1.5,
+        sigma_temp: float = 0.01,
     ) -> None:
         self.model_file = file
         self.dimension = dimension
@@ -334,8 +336,8 @@ class MDRNNInferenceModel(abc.ABC):
         self.n_layers = n_layers
         self.model_name = mdrnn_model_name(self.dimension, self.n_layers, self.n_hidden_units, self.n_mixtures)
         # sampling hyperparameters
-        self.pi_temp = 1.5
-        self.sigma_temp = 0.01
+        self.pi_temp = pi_temp
+        self.sigma_temp = sigma_temp
         self.reset_lstm_states()
         self.prepare() # load the network files.
 
@@ -407,8 +409,8 @@ class TfliteMDRNN(MDRNNInferenceModel):
     """Loads an MDRNN from a tensorflow lite (.tflite) file for running predictions efficiently."""
 
 
-    def __init__(self, file: Path, dimension: int, n_hidden_units: int, n_mixtures: int, n_layers: int) -> None:
-        super().__init__(file, dimension, n_hidden_units, n_mixtures, n_layers)
+    def __init__(self, file: Path, dimension: int, n_hidden_units: int, n_mixtures: int, n_layers: int, pi_temp: float = 1.5, sigma_temp: float = 0.01) -> None:
+        super().__init__(file, dimension, n_hidden_units, n_mixtures, n_layers, pi_temp, sigma_temp)
     
 
     def prepare(self) -> None:
@@ -450,8 +452,8 @@ class  KerasMDRNN(MDRNNInferenceModel):
     """Loads an MDRNN in inference mode from a .keras file."""
 
 
-    def __init__(self, file: Path, dimension: int, n_hidden_units: int, n_mixtures: int, n_layers: int) -> None:
-        super().__init__(file, dimension, n_hidden_units, n_mixtures, n_layers)
+    def __init__(self, file: Path, dimension: int, n_hidden_units: int, n_mixtures: int, n_layers: int, pi_temp: float = 1.5, sigma_temp: float = 0.01) -> None:
+        super().__init__(file, dimension, n_hidden_units, n_mixtures, n_layers, pi_temp, sigma_temp)
 
 
     def prepare(self) -> None:
@@ -496,8 +498,8 @@ class  KerasMDRNN(MDRNNInferenceModel):
 class DummyMDRNN(MDRNNInferenceModel):
     """A dummy MDRNN for use if there is no model available (yet or ever). It just generates the same value over and over again."""
 
-    def __init__(self, file: Path, dimension: int, n_hidden_units: int, n_mixtures: int, n_layers: int) -> None:
-        super().__init__(file, dimension, n_hidden_units, n_mixtures, n_layers)
+    def __init__(self, file: Path, dimension: int, n_hidden_units: int, n_mixtures: int, n_layers: int, pi_temp: float = 1.5, sigma_temp: float = 0.01) -> None:
+        super().__init__(file, dimension, n_hidden_units, n_mixtures, n_layers, pi_temp, sigma_temp)
 
     def prepare(self) -> None:
         self.output_value = random_sample(out_dim=self.dimension)
