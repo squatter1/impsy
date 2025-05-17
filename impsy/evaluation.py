@@ -69,7 +69,8 @@ class MCTSEvaluator:
             return np.array([])
     
     def evaluate_model(self, model_file: Path, log_file: Path, init_memory_length: int = 45, heuristics: Optional[Tuple[Callable, Callable]] = None
-                           , use_duration_match: bool = True, use_pitch_match: bool = True, simulation_depth: int = 2, greedy_weight: float = 0.4, exploration_weight: float = 0.1) -> float:
+                           , use_duration_match: bool = True, use_pitch_match: bool = True, simulation_depth: int = 2, greedy_weight: float = 0.4, exploration_weight: float = 0.1
+                           , time_limit_ms: float = 100,  max_iterations: int = None) -> float:
         """Evaluate a model against a log file and return accuracy."""
         # Load the model
         neural_net = self.load_model(model_file)
@@ -126,7 +127,8 @@ class MCTSEvaluator:
             start = time.time()
             best_output = prediction_tree.search(
                 memory=rnn_output_memory[:-1],  # Copy of memory up to this point
-                time_limit_ms=100,
+                time_limit_ms=time_limit_ms,
+                max_iterations=max_iterations,
             )[0] 
             total_prediction_time += time.time() - start
             
@@ -163,7 +165,8 @@ class MCTSEvaluator:
         return total_predictions, correct_predictions, correct_predictions_mdrnn, total_prediction_time
     
     def run_evaluation(self, models_dir: Path, logs_dir: Path, heuristics: Optional[Tuple[Callable, Callable]] = None, use_duration_match: bool = True
-                           , use_pitch_match: bool = True, init_memory_length: int = 45, simulation_depth: int = 2, greedy_weight: float = 0.4, exploration_weight: float = 0.1):
+                           , use_pitch_match: bool = True, init_memory_length: int = 45, simulation_depth: int = 2, greedy_weight: float = 0.4, exploration_weight: float = 0.1
+                           , time_limit_ms: float = 100,  max_iterations: int = None):
         """Run evaluation on all model and log file pairs."""
         # Find all .tflite model files
         model_files = sorted(models_dir.glob("*.tflite"))
@@ -184,7 +187,7 @@ class MCTSEvaluator:
                     continue
                 
                 click.secho(f"Evaluating model {model_num}...", fg="cyan")
-                total_predictions, correct_predictions, correct_predictions_mdrnn, total_prediction_time = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length, simulation_depth=simulation_depth, greedy_weight=greedy_weight, exploration_weight=exploration_weight)
+                total_predictions, correct_predictions, correct_predictions_mdrnn, total_prediction_time = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length, simulation_depth=simulation_depth, greedy_weight=greedy_weight, exploration_weight=exploration_weight, time_limit_ms=time_limit_ms, max_iterations=max_iterations)
                 grand_total_predictions += total_predictions
                 grant_total_prediction_time += total_prediction_time
                 grand_correct_predictions += correct_predictions
@@ -201,7 +204,7 @@ class MCTSEvaluator:
                 log_num = log_file.stem.split('-')[0]
                 
                 click.secho(f"Evaluating log {log_num}...", fg="cyan")
-                total_predictions, correct_predictions, correct_predictions_mdrnn, total_prediction_time = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length, simulation_depth=simulation_depth, greedy_weight=greedy_weight, exploration_weight=exploration_weight)
+                total_predictions, correct_predictions, correct_predictions_mdrnn, total_prediction_time = self.evaluate_model(model_file, log_file, heuristics=heuristics, use_duration_match=use_duration_match, use_pitch_match=use_pitch_match, init_memory_length=init_memory_length, simulation_depth=simulation_depth, greedy_weight=greedy_weight, exploration_weight=exploration_weight, time_limit_ms=time_limit_ms, max_iterations=max_iterations)
                 grand_total_predictions += total_predictions
                 grant_total_prediction_time += total_prediction_time
                 grand_correct_predictions += correct_predictions
@@ -243,206 +246,34 @@ def main(models_dir, logs_dir):
         evaluator = MCTSEvaluator()
 
     # For improv model use 0.15, 0.05, 1.0, 0.1, 0.2
-    #evaluator.run_evaluation(models_path, logs_path, heuristics=[
-    #                    (
-    #                        lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-    #                        lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-    #                        0.15
-    #                    ),
-    #])
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
                         (
                             lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
                             lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
                             0.15
-                        ),
-    ], use_duration_match=False)
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.05
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.05
                         ),
     ], use_pitch_match=False)
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
                         (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            1.0
+                            heuristics.tempo_and_swing_memory, 
+                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
+                            0.05
                         ),
     ], use_duration_match=False)
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
                         (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.1
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.1
+                            lambda x: heuristics.interval_markov_memory(x, order=1),
+                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
+                            1.0
                         ),
     ], use_pitch_match=False)
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
                         (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            0.2
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.05
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-                        (
                             lambda x: heuristics.time_multiple_markov_memory(x, order=1),
                             lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
                             0.1
                         ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            0.2
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.15
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.1
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            0.2
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.15
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.05
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.1
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            0.2
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.15
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.05
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            0.2
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.15
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.05
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.1
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.15
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.05
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.1
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            0.2
-                        ),
-    ])
+    ], use_duration_match=False)
 
     # Switch the nottingham model to use the nottingham heuristics
     models_path = Path('eval_models_nottingham')
@@ -469,200 +300,29 @@ def main(models_dir, logs_dir):
                             lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
                             0.25
                         ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.25
-                        ),
-    ], use_duration_match=False)
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.3
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.3
-                        ),
     ], use_pitch_match=False)
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
                         (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            0.25
+                            heuristics.tempo_and_swing_memory, 
+                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
+                            0.3
                         ),
     ], use_duration_match=False)
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
                         (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
+                            lambda x: heuristics.interval_markov_memory(x, order=1),
+                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
                             0.25
                         ),
     ], use_pitch_match=False)
     evaluator.run_evaluation(models_path, logs_path, heuristics=[
                         (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.3
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
                             lambda x: heuristics.time_multiple_markov_memory(x, order=1),
                             lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
                             0.25
                         ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.25
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.3
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.25
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.3
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.25
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.3
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-    ])
-    evaluator.run_evaluation(models_path, logs_path, heuristics=[
-                        (
-                            lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                            lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                            0.25
-                        ),
-                        (
-                            heuristics.tempo_and_swing_memory, 
-                            lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                            0.3
-                        ),
-                        (
-                            lambda x: heuristics.interval_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                            lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                            0.25
-                        ),
-                        (
-                            lambda x: heuristics.repetition_markov_memory(x, order=2),
-                            lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                            1.0
-                        ),
-    ])
+    ], use_duration_match=False)
+    
 
     click.secho("All evaluations complete!", fg="magenta", bold=True)
 
