@@ -401,7 +401,7 @@ class OSCServer(IOServer):
 
     def send(self, output_values) -> None:
         try:
-            self.osc_client.send_message(OSCServer.OUTPUT_MESSAGE_ADDRESS, output_values)
+            self.osc_client.send_message(OSCServer.OUTPUT_MESSAGE_ADDRESS, [0.50])
         except Exception as e:
             click.secho(f"OSC sending failed: {e}", fg="red")
 
@@ -520,6 +520,15 @@ class MIDIServer(IOServer):
 
     def send_midi_message(self, message):
         """Send a MIDI message across all required outputs"""
+        # TODO: delete, only for playback of 2D models
+        # If velocity = 127, change it to 70
+        if message.type == "note_on" and message.velocity == 127:
+            message.velocity = 100
+            # Print the note as a debug note
+            notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+            octave = message.note // 12 - 1
+            note = notes[message.note % 12]
+            print(f"Note: {note}{octave}")
         if self.midi_out_port is not None:
             self.midi_out_port.send(message)
         # if self.websocket_send_midi is not None:
