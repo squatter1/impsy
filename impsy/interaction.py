@@ -276,10 +276,6 @@ class InteractionServer(object):
                 self.rnn_output_memory.append(tuple(item))
                 if len(self.rnn_output_memory) > self.rnn_output_memory_size:
                     self.rnn_output_memory.pop(0)
-                # TODO: DELETE print the estimated tempo and swing values
-                durations = np.array(self.rnn_output_memory)[:, 0]
-                memory_tempo, memory_swing_name, memory_swing_duration, average_deviation = heuristics.estimate_tempo_and_swing(durations)
-                print(f"Estimated tempo: {memory_tempo}, Estimated swing: {memory_swing_name}, Average Deviation: {average_deviation}")
             rnn_output = neural_net.generate(item)
             if self.rnn_to_sound:
                 self.rnn_output_buffer.put_nowait(rnn_output)
@@ -297,6 +293,8 @@ class InteractionServer(object):
                 # If we aren't use a prediction tree, just predict the next item.
                 rnn_output = neural_net.generate(item)
             else:
+                # Start the timer
+                start_time = time.time()
                 # If no prediction tree exists, create one.
                 if self.rnn_prediction_tree is None:
                     self.rnn_prediction_tree = MCTSPredictionTree(
@@ -349,7 +347,6 @@ class InteractionServer(object):
                     if len(self.rnn_output_memory) > self.rnn_output_memory_size:
                         self.rnn_output_memory.pop(0)
                 # If we are using a prediction tree, conduct a search.
-                start_time = time.time()
                 # For prediction tree figs
                 #self.rnn_prediction_tree = MCTSPredictionTree(
                 #    root_output=item,
@@ -365,8 +362,6 @@ class InteractionServer(object):
                     memory=self.rnn_output_memory[:-1],
                     time_limit_ms=100
                 )
-                
-                print("OUTPUT:", best_output[0])
 
 
                 ############################
@@ -438,11 +433,13 @@ class InteractionServer(object):
 
 
 
-                #print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
-                #print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
                 self.rnn_prediction_tree.set_root(best_output[0])
                 # End timer
                 end_time = time.time()
+                # Subtract the time taken for search from the output time
+                best_output[0][0] -= (end_time - start_time)
+                # If the time taken is negative, set it to 0.01
+                best_output[0][0] = max(best_output[0][0], 0.01)
 
                 rnn_output = best_output[0]
                 neural_net.set_lstm_states(best_output[1])
