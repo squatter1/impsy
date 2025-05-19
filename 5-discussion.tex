@@ -1,8 +1,22 @@
 \chapter{Discussion}\label{chap:discussion}
 
+\section{Impact}
+
 \section{Limitations}
 TODO: simulation in MCTS is slow because of using the full RNN for predictions, typically MCTS will use a simpler calculation for simulation than it does for expansion to reach an end state, this could be tried?
 \section{Future Work}
+
+TODO:
+- if time, make the search time ms for each prediction based on the time of the last output and store one in advance.
+
+TODO: other heuristic including variable tempo and swing detection
+
+TODO: from task list
+- bias heuristics toward low depth? Eg matching markov earlier in branch matters more for the heuristic?
+- Future work section -> Multi stage disatnce function (eg for time interval, start with a harsh cutoff (uniqueness) for first section of search, then in the later section move to exploitation (pick optimal value, search local neighbourhood using KR-AUCB and baysien optimisation to find best time interval) 
+
+
+TODO: 'idea insertion' into search. Eg. if we have a parameter like interval markov model which is very confident about a next note, we should add it as a child, not only relying on the mdrnn to generate children. Can also be because a solution is found for each dimension but not combined. Eg cases where two good options are found, one gets good score from 'correct' time interval, and the other gets good score from 'correct' pitch interval. Way to register these dimension scores separately and then combine the best as new children could be very eeffective.
 
 TODO moved from system design:
 Setting Heuristics Through Human Performance
