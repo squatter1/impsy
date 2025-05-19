@@ -1,0 +1,27 @@
+# Define the stages of our pipeline
+stages:
+  - build
+
+# LaTeX compilation job with BibTeX support
+build_pdf:
+  stage: build
+  # Use a Docker image with TeX Live installed
+  image: texlive/texlive:latest
+  # Define what the job should do
+  script:
+    # Make sure we're in the right directory
+    - cd $CI_PROJECT_DIR
+    # Install any additional LaTeX packages if needed
+    # - tlmgr install <package-name>
+    - make
+    # - pdflatex -interaction=nonstopmode mainfile.tex
+    # - bibtex mainfile
+    # - pdflatex -interaction=nonstopmode mainfile.tex
+    # - pdflatex -interaction=nonstopmode mainfile.tex
+  # Define artifacts to be saved
+  artifacts:
+    paths:
+      - mainfile.pdf
+    expire_in: 1 week
+  tags:
+    - comp2300
