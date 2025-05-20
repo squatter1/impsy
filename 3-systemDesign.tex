@@ -127,7 +127,7 @@ To visually explain the relevance of this heuristic guidance, we have generated 
 
 \begin{figure}[th!]
     \includegraphics[width=11.1cm]{figures/mcts-unguided.png}
-    \caption{C-MCTS algorithm with a null heuristic. Nodes with $\geq3$ visits are shown, with logarithmic size based on visit count.\label{fig:MCTSunguided}}
+    \caption{C-MCTS algorithm with a null heuristic. Nodes with $\geq 3$ visits are shown, with logarithmic size based on visit count.\label{fig:MCTSunguided}}
 \end{figure}
 
 \begin{figure}[th!]
@@ -208,8 +208,9 @@ The model is contructed as follows:
 For example, a key of 2 with a value mapping of \{1: 5, -4: 2\} indicates that after the melody moved up by 2 semitones in the output memory, there were five instances where it then moved up by 1 semitone and two instances where it moved down by 4 semitones.
 
 When evaluating branches in the search tree, the branches are converted to interval sequences in the same way as the output memory. The heuristic then calculates the probability of each interval transition in the branch according to the generated markov model. This is based on the frequencies in the markov model, with Laplace smoothing applied to account for the fact that intervals not observed in th output memory should still have some probability of occuring. The formula for calculating the transition probability with smoothing is:
-\[P(\text{next_interval}|\text{current_interval}) = \frac{\text{count}(\text{current_interval}, \text{next_interval}) + \alpha}{\text{count}(\text{current_interval}) + \alpha \times |\text{transitions}|}\]
-Where $\text{count}(\text{current_interval}, \text{next_interval})$ is the number of times in the model that the next interval follows the current interval, $\text{count}(\text{current_interval})$ is the total number of transitions from the current interval, $|\text{transitions}|$ is the number of unique transitions observed from the current interval, and $\alpha$ is the Laplace smoothing parameter, which through testing was set to 0.1.
+% TODO fix math error
+%$P\left( \text{next interval} \mid \text{current interval} \right) = \frac{\text{count}(\text{current_interval}, \text{next_interval})+ \alpha}{\text{count}(\text%{current_interval})} + \alpha\left|\text{transitions}\right|$
+%Where $\text{count}(\text{current_interval}, \text{next_interval})$ is the number of times in the model that the next interval follows the current interval, $\text{count}%(\text{current_interval})$ is the total number of transitions from the current interval, $|\text{transitions}|$ is the number of unique transitions observed from the current %interval, and $\alpha$ is the Laplace smoothing parameter, which through testing was set to 0.1.
 
 The system calculates the average probability across all transitions in the branch and returns the inverse value (multiplied by a scaling factor) as the heuristic score:
 \[\text{heuristic} = (1 - \text{average probability}) \times \text{multiplier}\]
@@ -238,7 +239,8 @@ The model is contructed as follows:
 For example, a key of 0.25 with a value mapping of \{4: 3, 3: 1\} indicates that after a given note had a quarter of the duration of its predecessor, there were three instances where the next note had four times the duration of that given note, and one instance where the next note had three times the duration.
 
 Once this markov model is constructed, the process to evaluate branches is the same as for the pitch interval markov model. The transition probabilities are calculated using the same laplace smoothing constant of $\alpha = 0.1$, using the formula:
-\[P(\text{next_multiple}|\text{current_multiple}) = \frac{\text{count}(\text{current_multiple}, \text{next_multiple}) + \alpha}{\text{count}(\text{current_multiple}) + \alpha \times |\text{transitions}|}\]
+% TODO fix math error
+%\[P(\text{next_multiple}\mid\text{current_multiple}) = \frac{\text{count}(\text{current_multiple}, \text{next_multiple}) + \alpha}{\text{count}(\text{current_multiple}) + %\alpha \times |\text{transitions}|}\]
 The system then calculates the average probability across all transitions in the branch and returns a scaled inverse as the heuristic score:
 \[\text{heuristic} = (1 - \text{average probability}) \times \text{multiplier}\]
 The Time Multiple Markov Model is particularly effective at capturing rhythmic patterns, and can do so even when there is no strict tempo sue to the note by note way that quanitzation is done.
@@ -269,10 +271,11 @@ The model is contructed as follows:
 For example, a key of ((2, 1.0), (-3, 0.5)) with a value mapping of \{(1, 2.0): 3\} indicates that after an upward step of 2 semitones with equal duration followed by a downward movement of 3 semitones at half the previous duration, the next event was always an upward step of 1 semitone with twice the previous duration, and this specific pattern occurred three times in the output memory.
 
 Unlike the other Markov models, the Repetition Markov Model does not apply Laplace smoothing to unseen transitions. Instead, it assigns a probability of zero to any state-transition pair that was not observed in the performer's playing. This design choice deliberately emphasizes exact repetition of musical motifs, and leads to the following transition probability calculation:
-\[P(\text{next note}|\text{state}) = \begin{cases}
-\frac{\text{count}(\text{state}, \text{next note})}{\text{count}(\text{state})}, \& \text{if the transition was observed} \
-0, \& \text{otherwise}
-\end{cases}\]
+% TODO fix math error
+%\[P(\text{next note}\mid\text{state}) = \begin{cases}
+%\frac{\text{count}(\text{state}, \text{next note})}{\text{count}(\text{state})}, \& \text{if the transition was observed} \
+%0, \& \text{otherwise}
+%\end{cases}\]
 The system calculates the average probability across all transitions in the branch and returns a scaled inverse as the heuristic score:
 $\text{heuristic} = (1 - \text{average probability}) \times \text{multiplier}$
 This formulation ensures that branches containing exact repetitions of motifs from the performer's playing receive lower heuristic scores (indicating better conformity), while branches with novel combinations receive higher scores. However, in instances where the performer has not established a clear motif, this heuristic will not influence the search tree, allowing other heuristics to guide the search. This encourages the continuation of established motifs and thematic material to reinforce the structural coherence of the performance, but limits its potential negative impact on the originality of the generated music.
@@ -297,7 +300,7 @@ There are many potentially effective heuristics which were not included in our s
 
 Due to the amount of meta-variables controlling the system, it was not possible to perform rigorous testing on the best possible combination of them. Instead, a series of smaller tests were performed on each parameter individually, some brief evaluations of multiple possible values, and other based on the feel of the system when performing with it. We will go over each of these important parameters here in turn, excluding those relevant only to specific heuristics and hence mentioned in those sections. This serves not only to state the values used in the final system, but also to provide an overview of each of these constants and their relevance to the system.
 
-TODO: write this when rereading through the section to include anything mentioned. Also then look through code for any parameters.
+TODO: write this when rereading through the section to include anything mentioned. Also then look through code for any parameters. Also include weights of component heurstics
 
 
 
