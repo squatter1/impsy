@@ -169,39 +169,20 @@ TODO: analyse a figure showing a short piece of sheet music and two possible con
 
 \subsection{Tempo and Swing Conformity}
 
+Tempo and swing conformity measures how well musical branches adhere to the established tempo and swing in the output memory, if a constant tempo and swing clearly exists. Tempo and swing are fundamental rhythmic parameters in music that play a large part in rhythmic expectation and prediction.~\cite{Laroche2001TempoEstimation} discusses this importance, and establishes a method for estimating the tempo (speed), swing (rhythmic inequality of eighth notes), and downbeat (the first and usually strongest beat of a measure) of a piece of music. This method starts from an audio track, first establishing the location of notes from the audio, before performing analysis on these note locations to establish rythmic parameters. Since our system receives note locations directly as control inputs, we skip the first step of this process. Establishing downbeats also relies on the volume of notes, which is not available in our current 2D keyboard implementation, and so only tempo and swing are used in our system, with a modified implementation.
 
-Get all durations in the output memory. Then brute force different tempos in a range from 80bpm to 158bpm in increments of 2bpm (going more than double is unnecessary as it will count as half time/double time), and each testing no swing, triplet swing, and golden ratio swing. and measure how well the durations fit to the tempo, the tempo with the highest likelihood of matching to the tempo pdf is chosen as the tempo, as long as it is over a threshold of (TODO work this out from some testing) as under this it has been tested to be unreliable. Instead of testing each with a set downbeat from the beginning, the test is run first with no strong or weak beats. After a tempo is found, the test is run again for beat strength. Each beat is tested, and bar lengths of 3,4,5, and 7 are tested to somewhat immitate the time signature. It would be ideal to use loudness for beat strength, but this is not available in our current implementation. Instead, the beat strength is calculated by the likelihood of a note falling on that beat. If this is over a threshold of (TODO: test) then this time signature metric is included in the heuristic.
+The tempo and swing heuristic operates by examining the durations between note onsets to determine the most likely tempo in beats per minute (BPM) and the type of swing feel being employed. The system evaluates these patterns by comparing actual note durations against expected durations that would occur in various tempo and swing combinations. For any given tempo, the algorithm calculates expected note durations for common rhythmic values, from sixteenth notes up to whole notes, as well as the dotted (1.5x length) variants of these notes. For swing, the standard eighth note is replaced with two swung eighth notes, a long and short note, with a ratio determined by their level of swing. For our model only triplet swing (2:1 ratio) is used, as this is the most common type of swing in Western music, however, it is trivial to add more swing types if desired.
 
-GEN:
+To determine the rhythm of the output memory, the algorithm scans across a range of tempos (default 70-138 BPM in 2 BPM increments) for both no swing and triplet swing, and calculates the average deviation score of the output memory. The deviation score for each note is calculated as:
+\[\text{deviation} = \text{penalty} + \frac{|\text{actual} - \text{expected}|}{\text{expected}}\]
+Where the penalty is a small additional cost applied to less likely but still possible note durations in a given tempo, such as dotted notes. The system also applies a penalty when consecutive long swing notes are detected, as this pattern typically indicates a misclassification of the rhythm rather than actual swing. A tempo conformity score is then calculated for each tempo and swing option:
+\[\text{tempo conformity} = 1 - \frac{\text{average deviation score}}{\text{maximum acceptable deviation}}\]
+Where the maximum acceptable deviation (default 0.08) represents the threshold beyond which a performance would be considered rhythmically inconsistent. The tempo and swing value with the maximum tempo conformity score are selected as the best fit for the output memory, provided there is at least one positive score. If no positive score is found, there is no clear static tempo, and the system does not apply this heuristic.
 
-Tempo and swing conformity measures how well musical branches adhere to the established tempo and swing in the output memory, if a constant tempo and swing clearly exists. Tempo and swing are fundamental rhythmic parameters in music that play a large part in rhythmic expectation and prediction.~\cite{Laroche2001TempoEstimation} TODO FROM HERE
+When evaluating potential branches in the search tree, the heuristic determines the average deviation of the branch for the established tempo and swing of the output memory. For branches with a lower average deviation than the output memory, the heuristic returns zero, allowing other heuristics to guide the search. For branches that receive a higher score, the heuristic returns the following value:
+\[\text{heuristic} = \text{memory tempo conformity} \times (\text{branch average deviation} - \text{memory average deviation}) \times \text{multiplier}\]
 
-This heuristic analyzes the temporal patterns in a performer's playing to identify both the underlying tempo (speed) and swing (rhythmic inequality of eighth notes), ensuring the system's generated continuations maintain rhythmic consistency.
-The tempo and swing heuristic operates by examining the durations between note onsets to determine the most likely tempo in beats per minute (BPM) and the type of swing feel being employed. The system evaluates these patterns by comparing actual note durations against expected durations that would occur in various tempo and swing combinations.
-For any given tempo, the algorithm calculates expected note durations for common rhythmic values found in Western music:
-
-Whole notes (4 beats)
-Half notes (2 beats)
-Quarter notes (1 beat)
-Eighth notes (1/2 beat)
-Sixteenth notes (1/4 beat)
-Dotted variants of these notes (1.5 times their regular duration)
-
-When evaluating swing, the system models two different rhythmic interpretations:
-
-"None" (straight rhythm): eighth notes are played with equal duration
-"Triplet" swing: eighth notes are played with a 2:1 duration ratio
-
-For each note duration in the input sequence, the algorithm calculates how closely it matches the expected durations by finding the minimum normalized deviation:
-$\text{deviation} = \text{penalty} + \frac{|\text{actual} - \text{expected}|}{\text{expected}}$
-Where "penalty" is a small additional cost applied to certain duration patterns (e.g., dotted notes receive a 0.05 penalty). The system also applies a penalty when consecutive long swing notes are detected, as this pattern typically indicates a misclassification of the rhythm rather than actual swing.
-To determine the performer's rhythmic tendencies, the algorithm scans across a range of tempos (default 70-138 BPM in 2 BPM increments) and both swing options, selecting the combination that minimizes the average deviation score. This represents the most likely tempo and swing feel of the performance.
-When evaluating potential branches in the search tree, the heuristic compares the rhythmic consistency of the branch against the performer's established patterns. The system first calculates a tempo conformity value:
-$\text{tempo conformity} = 1 - \frac{\text{average deviation}}{\text{maximum acceptable deviation}}$
-Where the maximum acceptable deviation (default 0.08) represents the threshold beyond which a performance would be considered rhythmically inconsistent. If the performer's playing exceeds this threshold, the system determines that no clear tempo or swing pattern exists and does not apply this heuristic.
-For branches that maintain or improve upon the performer's rhythmic consistency, the heuristic returns zero, allowing other heuristics to guide the search. For branches that deviate more than the performer's established pattern, the heuristic calculates a penalty:
-$\text{heuristic} = \text{tempo conformity} \times (\text{branch deviation} - \text{memory deviation}) \times 20 \times \text{multiplier}$
-This approach rewards branches that maintain the performer's rhythmic tendencies while allowing for natural rhythmic variation within the bounds established by the performer's own playing. By dynamically adapting to the performer's rhythmic precision, the system can accommodate both strictly metronomic performances and more rubato playing styles.
+This approach scales the relative effect of this heuristic based on the level of tempo conformity in the output memory, as well as with an additional overall scaling multiplier. It rewards branches that best maintain the established tempo and swing of the output memory where this tempo and swing is clear, and does not have an effect where it is not, hence not negatively affecting results where the performer is using variable tempo or swing.
 
 TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.
 
@@ -211,47 +192,29 @@ TODO: analyse a figure showing a short piece of sheet music and two possible con
 \end{figure}
 
 \subsection{Pitch Interval Markov Model}
-~\citep{Dowling1971Contour}
-^^ paper talks about the relevance of pitch contour
-~\citep{Temperley2008MelodyPerception} talks about intervals
 
-GEN:
+The Pitch Interval Markov Model heuristic captures melodic patterns by analyzing the intervals between consecutive notes. Early experiments into melody distortion by~\citep{White1960MelodyRecognition} tested which changes to melody most affected recognition, and established the importance of melodic contour and interval size.~\citep{Dowling1971Contour} conducted more rigourous experiments on these factors in particularly, and showed that there are three levels to melody recognition. The most fundamental of these is the maintainence of contour, or the direction of pitch movement from each note to the next. One step above this is the maintainence of intervals, or the distance between each note. The final level is the maintainence of absolute pitch, or in essense repetition of the same melody. The addition of each of these factors improves melody recognition. These factors have later been used to to establish their importance in melody prediction~\citep{Temperley2008MelodyPerception}, with it seeming that memory of the direction of pitch and intervals between notes in a melody significantly influence perceived probability of melodic continuations. Hence, we aim to recreate this prediction process as a heuristic parameter in our system.
 
-The Pitch Interval Markov Model heuristic captures sequential patterns in melodic movement by analyzing the intervals between consecutive notes. Unlike approaches that model absolute pitch values, this heuristic focuses on the relative movement between notes, allowing it to detect melodic patterns regardless of their tonal center or transposition.
-This heuristic implements an n-order Markov chain that models the probability of specific pitch intervals following a sequence of previous intervals. By default, the system uses a second-order model, meaning it considers the two preceding intervals to predict the next interval in a sequence. This approach allows the system to capture common melodic patterns such as turns, scales, arpeggios, and characteristic motifs that define a performer's improvisational or compositional style.
-The model is constructed as follows:
+Initial testing showed that melodic contour based heuristics provided minimal effectiveness, likely due to them being relatively simple and hence likely mostly encompassed already by the neural network predictions. Hence, we instead focus on the second level of melody recognition, the maintainence of intervals. To replicate as best as possible the findings of~\citep{Temperley2008MelodyPerception}, we use a Markov model to predict the next interval based on changes in interval detected in the output memory. The heuristic is set up to allow for any n-order markov model, but a first-order model was found to be the most effective in our tests and is the version which will be described here. 
 
-Extract the sequence of pitch values from the performer's playing, converting them to MIDI note numbers (integers from 0-127)
-Calculate the intervals between consecutive notes (the difference between adjacent pitch values)
-For each subsequence of n intervals (where n is the order of the model), record the frequency with which each possible interval follows that subsequence
-Convert these frequencies into transition probabilities for use in branch evaluation
+The model is contructed as follows:
+\begin{itemize}
+    \item Extract the sequence of pitch values from the output memory and convert them to MIDI note numbers (integers from 0-127)
+    \item Calculate the intervals between consecutive notes (the difference between adjacent pitch values)
+    \item For each interval, record the frequency with which each possible interval follows that interval in the output memory
+    \item Represent the model as a dictionary where the keys are the intervals and the values are dictionaries mapping each possible next interval to its frequency 
+\end{itemize}
 
-The model is represented as a nested dictionary structure where:
+For example, a key of 2 with a value mapping of \{1: 5, -4: 2\} indicates that after the melody moved up by 2 semitones in the output memory, there were five instances where it then moved up by 1 semitone and two instances where it moved down by 4 semitones.
 
-The keys of the outer dictionary are tuples representing sequences of n consecutive intervals (states)
-The keys of the inner dictionaries are individual intervals
-The values of the inner dictionaries are counts of how often each interval follows the corresponding state
-
-For example, in a second-order model, a key of (2, -3) with a value mapping of {1: 5, 4: 2} indicates that after the interval sequence "up 2 semitones, down 3 semitones," the next interval was "up 1 semitone" five times and "up 4 semitones" twice in the performer's playing.
-When evaluating potential branches, the heuristic calculates the probability of each interval transition in the branch according to the model constructed from the performer's playing. For each transition, it:
-
-Identifies the current state (the preceding n intervals)
-Looks up the probability of the observed next interval given that state
-If the state or transition has never been observed, applies Laplace smoothing to provide a small but non-zero probability
-
-The smoothing parameter (default 0.1) prevents zero probabilities for unseen transitions while still appropriately penalizing unlikely interval sequences. The formula for calculating the transition probability with smoothing is:
-$P(\text{interval}|\text{state}) = \frac{\text{count}(\text{state}, \text{interval}) + \alpha}{\text{count}(\text{state}) + \alpha \times |\text{transitions}|}$
-Where:
-
-$\text{count}(\text{state}, \text{interval})$ is the number of times the interval follows the state
-$\text{count}(\text{state})$ is the total number of transitions from the state
-$|\text{transitions}|$ is the number of unique transitions observed from the state
-$\alpha$ is the smoothing parameter
+When evaluating branches in the search tree, the branches are converted to interval sequences in the same way as the output memory. The heuristic then calculates the probability of each interval transition in the branch according to the generated markov model. This is based on the frequencies in the markov model, with Laplace smoothing applied to account for the fact that intervals not observed in th output memory should still have some probability of occuring. The formula for calculating the transition probability with smoothing is:
+\[P(\text{next_interval}|\text{current_interval}) = \frac{\text{count}(\text{current_interval}, \text{next_interval}) + \alpha}{\text{count}(\text{current_interval}) + \alpha \times |\text{transitions}|}\]
+Where $\text{count}(\text{current_interval}, \text{next_interval})$ is the number of times in the model that the next interval follows the current interval, $\text{count}(\text{current_interval})$ is the total number of transitions from the current interval, $|\text{transitions}|$ is the number of unique transitions observed from the current interval, and $\alpha$ is the Laplace smoothing parameter, which through testing was set to 0.1.
 
 The system calculates the average probability across all transitions in the branch and returns the inverse value (multiplied by a scaling factor) as the heuristic score:
-$\text{heuristic} = (1 - \text{average probability}) \times 2 \times \text{multiplier}$
+\[\text{heuristic} = (1 - \text{average probability}) \times \text{multiplier}\]
 This formulation ensures that branches with interval patterns similar to those in the performer's playing receive lower heuristic scores (indicating better conformity), while branches containing unusual or unseen interval sequences receive higher scores.
-The interval Markov model is particularly effective at capturing the characteristic "vocabulary" of melodic patterns a performer uses while allowing for creative variations within that style. By focusing on intervals rather than absolute pitches, the model generalizes across different keys and registers, making it applicable to a wide range of musical contexts and styles from simple diatonic melodies to complex chromatic passages.
+The interval Markov model is particularly effective at capturing the characteristic "vocabulary" of melodic patterns a performer uses while allowing for creative variations within that style. By focusing on intervals rather than absolute pitches, the model generalizes across different keys and registers, making it applicable to a wide range of musical contexts and styles from simple diatonic melodies to complex chromatic passages. It is partciularly useful during sections where repeated intervalic patterns are present, such as an arpeggio.
 
 TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.
 
@@ -262,42 +225,23 @@ TODO: analyse a figure showing a short piece of sheet music and two possible con
 
 \subsection{Time Multiple Markov Model}
 
-GEN:
+Rhythmic contour has been found to be at least as important as pitch contour in melody perception~\citep{Dowling1999RhythmContour}. Similar experiments to those performed by~\citep{Dowling1971Contour} for pitch contour have also be performed for rhythmic contour, and have shown very similar results~\citep{Schmuckler2023RhythmContour}. Given the similarities between these two factors, for this heuristic we use a very similar approach to the pitch interval markov model heuristic. However, there are two important differences in model construction. Firstly, the time multiple markov model uses the ratios between consecutive note durations rather than the difference between them. This is because it is relative proportions which determine rhythmic patterns and equate to the role of intervals in pitch. Technically, for pitch intervals ratios were also used, however since frequency values are converted to MIDI notes numbers, multiplicative distances are converted to additive distances. The second difference is that time operates on a continuous scale in our model, whereas pitch operates on a discrete scale. Hence for a markov model to work, multiples between pitches must first be quantized to a discrete scale. These time multiples are quantized to the multiplicatively closest value in the set $\text{Valid multiples} = {0.125, 0.25, 0.33, 0.5, 0.67, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0}$, with a small distance penalty for multiples outside of the set $\text{Common multiples} = {0.25, 0.5, 1.0, 2.0, 4.0}$.
 
-The Time Multiple Markov Model heuristic captures patterns in rhythmic relationships by analyzing the ratios between consecutive note durations rather than their absolute values. This approach models rhythm in terms of relative proportions, which aligns with how musicians conceptualize rhythmic patterns and enables the system to recognize consistent rhythmic structures even when tempo fluctuates.
-While the Tempo and Swing heuristic addresses the global rhythmic framework of the performance, the Time Multiple Markov Model focuses on local rhythmic patterns and transitions. It achieves this by examining how note durations change from one note to the next, measuring these changes as multiplicative ratios rather than absolute differences.
-The heuristic first processes the performer's timing data by calculating the ratio between each consecutive pair of note durations. For example, if a quarter note (duration $x$) is followed by an eighth note (duration $x/2$), the resulting multiple would be 0.5. These ratios are then quantized to a predefined set of musically meaningful values:
-$\text{Valid multiples} = {0.125, 0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0}$
-Within this set, certain values are recognized as particularly common in musical practice:
-$\text{Common multiples} = {0.25, 0.5, 1.0, 2.0, 4.0}$
-These common multiples correspond to standard rhythmic relationships in Western music notation: a quarter note followed by a sixteenth note (0.25), a quarter note followed by an eighth note (0.5), two consecutive notes of the same duration (1.0), an eighth note followed by a quarter note (2.0), and a sixteenth note followed by a quarter note (4.0).
-The algorithm slightly penalizes multiples outside this common set during the quantization process, using a multiplier of 1.25 when calculating the distance to these less common values. This reflects the empirical observation that certain rhythmic relationships occur more frequently in most musical styles.
-Using these quantized time multiples, the system constructs an n-order Markov chain (default order 2) that captures the probability of each time multiple following a specific sequence of previous multiples. The model is structured as a nested dictionary where:
+The model is contructed as follows:
+\begin{itemize}
+    \item Extract the sequence of time intervals from the output memory
+    \item Calculate the multiple between consecutive time intervals (eg 1.2 seconds to 0.3 seconds would be 0.25)
+    \item Quantize the multiples to the nearest value in the set of valid multiples, with a small distance penalty for less common multiples
+    \item For each quantized multiple, record the frequency with which each other quantized multiple follows that interval in the output memory
+    \item Represent the model as a dictionary where the keys are the quantized multiples and the values are dictionaries mapping each possible next quantized multiple to its frequency 
+\end{itemize}
+For example, a key of 0.25 with a value mapping of \{4: 3, 3: 1\} indicates that after a given note had a quarter of the duration of its predecessor, there were three instances where the next note had four times the duration of that given note, and one instance where the next note had three times the duration.
 
-The keys of the outer dictionary are tuples representing sequences of n consecutive time multiples (states)
-The keys of the inner dictionaries are individual time multiples
-The values of the inner dictionaries are counts of how often each multiple follows the corresponding state
-
-For example, in a second-order model, an entry with key (1.0, 0.5) and value mapping {2.0: 3, 1.0: 1} indicates that after two notes of equal duration followed by a note half as long, the next note was twice as long as its predecessor three times and equal in duration once in the performer's playing.
-When evaluating potential branches, the heuristic calculates the probability of each time multiple transition according to the model derived from the performer's playing. For each transition, it:
-
-Identifies the current state (the preceding n time multiples)
-Looks up the probability of the observed next multiple given that state
-If the state or transition has never been observed, applies Laplace smoothing with parameter $\alpha$ (default 0.1)
-
-The smoothed transition probability is calculated using:
-$P(\text{multiple}|\text{state}) = \frac{\text{count}(\text{state}, \text{multiple}) + \alpha}{\text{count}(\text{state}) + \alpha \times |\text{transitions}|}$
-Where:
-
-$\text{count}(\text{state}, \text{multiple})$ is the number of times the multiple follows the state
-$\text{count}(\text{state})$ is the total number of transitions from the state
-$|\text{transitions}|$ is the number of unique transitions observed from the state
-$\alpha$ is the smoothing parameter
-
-The system calculates the average probability across all transitions in the branch and returns a scaled inverse as the heuristic score:
-$\text{heuristic} = (1 - \text{average probability}) \times 2 \times \text{multiplier}$
-This formulation ensures that branches with rhythmic patterns similar to those in the performer's playing receive lower heuristic scores (better conformity), while branches containing unusual rhythmic sequences receive higher scores.
-The Time Multiple Markov Model is particularly effective at capturing characteristic rhythmic patterns such as syncopations, dotted rhythms, and other timing relationships that define a performer's rhythmic style. By modeling relative durations rather than absolute timings, the heuristic generalizes across tempo variations and can identify consistent rhythmic patterns even in rubato performances where strict adherence to a metronome would be inappropriate.
+Once this markov model is constructed, the process to evaluate branches is the same as for the pitch interval markov model. The transition probabilities are calculated using the same laplace smoothing constant of $\alpha = 0.1$, using the formula:
+\[P(\text{next_multiple}|\text{current_multiple}) = \frac{\text{count}(\text{current_multiple}, \text{next_multiple}) + \alpha}{\text{count}(\text{current_multiple}) + \alpha \times |\text{transitions}|}\]
+The system then calculates the average probability across all transitions in the branch and returns a scaled inverse as the heuristic score:
+\[\text{heuristic} = (1 - \text{average probability}) \times \text{multiplier}\]
+The Time Multiple Markov Model is particularly effective at capturing rhythmic patterns, and can do so even when there is no strict tempo sue to the note by note way that quanitzation is done.
 
 TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.
 
@@ -307,50 +251,31 @@ TODO: analyse a figure showing a short piece of sheet music and two possible con
 \end{figure}
 
 \subsection{Repetition Markov Model}
-~\citep{Duane2016Repetition} - level of repetition changes per phrase so important to track (justifies using markov models)
-Can help where repetition is required, eg repeating the same phrase or motif. Only takes into account high probability note changes with multiple instances. Maybe don't need a markov model? Count all time where there are multiple cases of a 2D note change (eg C quarter note followed by E quater note ALWAYS goes to G half note in recent history) and increase heuristic when true.
-Could do lower level eg markov model of interval changes.
 
-GEN:
+The Repetition Markov Model heuristic identifies repetition by combining pitch intervals and time multiples from the previous two heuristics into a single second-order markov model.~\citep{Duane2016Repetition} shows that identifying repetition plays a key role in musical prediction probabilities, but also that to maintain originality and prominent sections within a piece, this repetition must be balanced with variation. To create this balance, strict rules are placed on when the repetition model comes into effect. No Laplace smoothing is applied, and the second-order model ensures that this heuristic will only influence the search tree when a clear motif is established through multiple note transitions in a row which are repeated. The maintainence of relative instead of absolute measures of pitch and time also allows for transposed motifs to be recognised, which is important for the system to be able to change keys and perform well in different octaves.
 
-The Repetition Markov Model heuristic identifies and encourages structural repetition by tracking combinations of pitch intervals and rhythmic patterns in the performer's playing. This heuristic is designed to capture the thematic and motivic development that characterizes coherent musical expressions while preserving the repetition that provides structural integrity to musical compositions.
-Unlike the separate Pitch Interval and Time Multiple Markov Models, which analyze pitch and rhythmic patterns independently, the Repetition Markov Model examines their interaction as unified musical events. This integrated approach allows the system to recognize complete musical motifs and phrases, which are fundamental building blocks in nearly all musical traditions.
-The heuristic constructs a combined representation of the performer's melodic and rhythmic patterns as follows:
+The model is contructed as follows:
+\begin{itemize}
+    \item Extract the sequence of pitch values and time intervals from the output memory, converting pitches to MIDI note numbers
+    \item Calculate the pitch intervals and quantized time multiples between consecutive notes
+    \item For each tuple of (pitch\_interval, time\_multiple), record the frequency with which each possible next tuple follows that tuple in the output memory
+    \item Represent the model as a nested dictionary where:
+    \begin{itemize}
+        \item The keys of the outer dictionary represent a state, which is a tuple of two consecutive paired environments
+        \item The keys of the inner dictionaries are each individual paired event which follows that state in the output memory
+        \item The values of the inner dictionaries are frequency counts for this continuation
+    \end{itemize}
+\end{itemize}
+For example, a key of ((2, 1.0), (-3, 0.5)) with a value mapping of \{(1, 2.0): 3\} indicates that after an upward step of 2 semitones with equal duration followed by a downward movement of 3 semitones at half the previous duration, the next event was always an upward step of 1 semitone with twice the previous duration, and this specific pattern occurred three times in the output memory.
 
-Extract the sequence of pitch values and time intervals from the performer's playing
-Calculate the pitch intervals between consecutive notes (the difference between adjacent pitch values)
-Calculate the time multiples between consecutive note durations, quantizing them to a predefined set of musically meaningful values:
-$\text{Valid multiples} = {0.125, 0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0}$
-Combine each pitch interval with its corresponding time multiple to create paired events represented as tuples: (pitch\_interval, time\_multiple)
-Construct an n-order Markov chain (default order 2) that captures the probability of each paired event following a sequence of previous paired events
-
-The model is structured as a nested dictionary where:
-
-The keys of the outer dictionary are tuples representing sequences of n consecutive paired events (states)
-The keys of the inner dictionaries are individual paired events
-The values of the inner dictionaries are counts of how often each paired event follows the corresponding state
-
-For example, in a second-order model, a key of ((2, 1.0), (-3, 0.5)) with a value mapping of {(1, 2.0): 3} indicates that after an upward step of 2 semitones with equal duration followed by a downward movement of 3 semitones at half the previous duration, the next event was an upward step of 1 semitone with twice the previous duration, and this specific pattern occurred three times in the performer's playing.
-Unlike the other Markov models, the Repetition Markov Model does not apply Laplace smoothing to unseen transitions. Instead, it assigns a probability of zero to any state-transition pair that was not observed in the performer's playing. This design choice deliberately emphasizes exact repetition of musical motifs:
-$P(\text{event}|\text{state}) = \begin{cases}
-\frac{\text{count}(\text{state}, \text{event})}{\text{count}(\text{state})}, \& \text{if the transition was observed} \
+Unlike the other Markov models, the Repetition Markov Model does not apply Laplace smoothing to unseen transitions. Instead, it assigns a probability of zero to any state-transition pair that was not observed in the performer's playing. This design choice deliberately emphasizes exact repetition of musical motifs, and leads to the following transition probability calculation:
+\[P(\text{next note}|\text{state}) = \begin{cases}
+\frac{\text{count}(\text{state}, \text{next note})}{\text{count}(\text{state})}, \& \text{if the transition was observed} \
 0, \& \text{otherwise}
-\end{cases}$
-When evaluating potential branches, the heuristic calculates the probability of each combined event transition according to the model derived from the performer's playing. For each transition, it:
-
-Identifies the current state (the preceding n paired events)
-Looks up the probability of the observed next paired event given that state
-Assigns zero probability to any transition not previously observed
-
+\end{cases}\]
 The system calculates the average probability across all transitions in the branch and returns a scaled inverse as the heuristic score:
-$\text{heuristic} = (1 - \text{average probability}) \times 5 \times \text{multiplier}$
-The higher scaling factor (5 compared to 2 in the other Markov models) places greater emphasis on repetition, reflecting its importance in creating musically coherent structures. This formulation ensures that branches containing exact repetitions of motifs from the performer's playing receive lower heuristic scores (indicating better conformity), while branches with novel combinations receive higher scores.
-The Repetition Markov Model serves two important functions in the system's overall behavior:
-
-It encourages the continuation of established motifs and thematic material, reinforcing the structural coherence of the performance
-It provides a counterbalance to the other heuristics, which might otherwise favor variations that diverge too significantly from the performer's original musical ideas
-
-This balance between repetition and variation is essential for generating musically satisfying continuations that both extend and develop the performer's material while maintaining a coherent relationship to what has come before. The model's integration of pitch and rhythmic information allows it to capture complete musical gestures, which are more perceptually salient and structurally significant than either pitch or rhythm patterns alone.
+$\text{heuristic} = (1 - \text{average probability}) \times \text{multiplier}$
+This formulation ensures that branches containing exact repetitions of motifs from the performer's playing receive lower heuristic scores (indicating better conformity), while branches with novel combinations receive higher scores. However, in instances where the performer has not established a clear motif, this heuristic will not influence the search tree, allowing other heuristics to guide the search. This encourages the continuation of established motifs and thematic material to reinforce the structural coherence of the performance, but limits its potential negative impact on the originality of the generated music.
 
 TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.
 
