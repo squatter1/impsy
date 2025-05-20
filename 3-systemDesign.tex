@@ -285,37 +285,21 @@ TODO: analyse a figure showing a short piece of sheet music and two possible con
 \end{figure}
 
 \subsection{Failed Parameters}
-Pitch range, height and proximity
-TODO: Inlcude in later section, analyse why this doesn't work, too simple of patterns, definitely already covered by the MDRNN prediction, and hence adding extra more simple restrictions only limits the MDRNN instead of improving it.
-~\citep{Temperley2008MelodyPerception}
 
-This paper is important as it establishes multiple musical parameters relevant to melody, focusing specifically on pitch in melody. It establishes three main relevant aspects of conformity within its dataset of melodies, these being pitch range, pitch proximity, and key profile conformity. These are used to establish the probablity of notes within a melody. We adapt these parameters to our own model of note prediction.
+Some parameters were designed and tested but ultimately not included in the final system due to their ineffectiveness. However, they are worth mentioning given that being able to adapt to various different heuristics tuned to different control dimensions or styles is an important part of our system, and so more general commentary on how to avoid ineffective heuristics is appropriate.
 
-Pitch range is a gaussian calculated as the standard deviation of pitch within a melody from the 'mean note' of a melody. This melody is the output memory in our calculations.
-
-It is important to note the relevance of this mean note as another parameter implicitly included, pitch height:
-From paper: HOW MUSIC MOVES: Musical Parameters and Listeners’ Images of Motion
-Section: Mapping Music Into Space and Motion: Specific Parameters
-Talks a lot about pitch height and refers to multiple studies noting it's relevance.
-
-Pitch proximity is the standard deviation of each notes pitch from its predecessor, once again over the output memory.
+There were three parameters that were created and found to be ineffective. These were pitch range, pitch height, and pitch proximity heuristics. These were all based on the work of~\cite{Temperley2008MelodyPerception}, who also informed the design of the successful key and modal heuristic and pitch interval markov model heuristic, and of~\cite{Eitan2006MusicParameters} which is a highly regarded paper on musical parameters which discusses in depth the importance of pitch height. Pitch range measured the overall range from the lowest to highest note in the output memory, pitch height measured the average pitch of the output memory, and pitch proximity measured the average distance between consecutive notes in the output memory. These were found by~\cite{Temperley2008MelodyPerception} to be important metrics for melody perception, but they reduced the performance of our system instead of improving it. This is likely due to the fact that these parameters are relatively simple and hence already encompassed by the neural network predictions. Hence, they only served to limit the MDRNNs predictions instead of constructively guiding them. This is a key lesson for future work, that overly simplistic heuristics can be detrimental to the performance of the system. 
 
 \subsection{Potential Heuristics for Other Control Dimensions}
-Many other instruments will have varying control dimensions, each of which could come with their own set of heuristics. For example, loudness controls could lead to algorithms which perceive strong and weak beats, leading to potential for more complex heuristics such as time signatures. Timbre related controls could lead to mood related heuristics being more accurate and hence relevant. These are just a few examples of the many potential heuristics that could be developed for other control dimensions, and we encourage future work to explore these possibilities. However, as a proof of concept for this system, using a simple 2D monophonic keyboard model is sufficient to demonstrate the potential of this system without overcomplicating the implementation and evaluation. We will discuss ideas on generalising the system more in the future work section.
-TODO: Time Signature
-TODO: voice leading
-TODO: look at my old paper with charles
-\subsection{Consonance}
-~\cite{Ahlback2004MelodyCognition}
-Melody Beyond Notes A Study of Melody Cognition - notes that consonance is relevant, and opposed to chromatic movement. Implicit harmony can be encoded in melody through consonant interval movement, and so the recent favouring of consonant intervals over dissonant ones can be used as a parameter somewhat representing whether the melody is acting as implict harmony or pure melody.
-Look at roughness equations from previous work with charles ~\cite{Vassilakis2001Roughness}
+There are many potentially effective heuristics which were not included in our system due to them not being relevant to our 2D monophonic keyboard model. However, many other instruments will have varying control dimensions, each of which could include additional heuristics to encompass these dimensions. For example, loudness controls could lead to algorithms which perceive strong and weak beats, leading to potential for heuristics relating to time signatures and downbeat placement~\citep{Laroche2001TempoEstimation}. Timbre related controls could lead to mood related heuristics being more accurate and hence relevant~\citep{Hailstone2009TimbreMood}. And the addition of polyphony could lead to voice leading~\citep{Wall2020VoiceLeading} and other harmony related heuristics being more relevant. One potential heuritic which was considered but not included was consonance, as although it has been found to be relevant for melody cognition~\citep{Ahlback2004MelodyCognition}, it is made redundant by the pitch interval markov model heuristic. However, in a polyphonic setting it would no longer be redundant, and so could be included. Stylistic heuristics could also be added to the system if relevant, for example if the system was being used to perform in baroque counterpoint, a style where very specific rules must be adhered to~\citep{Gauldin2013BaroqueCounterpoint}, then heuristics could be added to enforce these rules. This is a key part of the system, that it is designed to be extensible and adaptable to different styles and instruments, and so heuristics can be easily added, removed, or modified as needed.
 
 \section{Experimental Setup}
 
-\subsection{Tuning our Prediction Algorithm Constants}
+Due to the amount of meta-variables controlling the system, it was not possible to perform rigorous testing on the best possible combination of them. Instead, a series of smaller tests were performed on each parameter individually, some brief evaluations of multiple possible values, and other based on the feel of the system when performing with it. We will go over each of these important parameters here in turn, excluding those relevant only to specific heuristics and hence mentioned in those sections. This serves not only to state the values used in the final system, but also to provide an overview of each of these constants and their relevance to the system.
 
-\subsection{Retuning the MDRNN Constants}
-2. Comparisons of exploration and exploitation, by looking at probability of chosen node vs average probability of any node randomly chosen in the MDN distribution. If the chosen node probability is usually higher than average, shink how wide the MDN is as the current one is too explorative, if it is usually lower, increase the width of the MDN as the current one is too exploitative. Compare against the perceived optimal from Charles' study when only choosing randomly, I hypothesise that if the guidance of MCTS search is strong, it should learn toward wider distributions being optimal than are optimal with random selection.
+TODO: write this when rereading through the section to include anything mentioned. Also then look through code for any parameters.
+
+
 
 
 
