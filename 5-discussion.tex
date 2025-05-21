@@ -1,10 +1,51 @@
 \chapter{Discussion}\label{chap:discussion}
 
+This thesis introduces a novel prediction system for real-time interactive musical performance, building upon the IMPSY system. The core innovation lies in integrating a Monte Carlo Tree Search (MCTS) algorithm with a Mixture Density Recurrent Neural Network (MDRNN) to guide musical predictions. Unlike previous approaches that rely on random sampling from a Gaussian Mixture Model (GMM), our system employs a heuristic-based search to ensure musical coherence and expressiveness. The research specifically focuses on the call-and-response mode of IMPSY, using a monophonic 2D keyboard as a proof of concept. The evaluation demonstrates that the MCTS-enhanced system significantly improves prediction accuracy and qualitative aspects like playability and expressiveness, especially in structured improvisations, by generating more musically coherent outputs.
+
 \section{Impact}
+The integration of MCTS and heuristic-based guidance into the IMPSY system offers significant advancements for New Interfaces for Musical Expression (NIMEs) and human-computer interaction as a whole. Our research serves as a proof of concept for the potential that search integration with current machine learning prediction and interaction systems can have.
+
+The most obvious area of impact for this research is on musical prediction systems. By leveraging MCTS to guide machine learning based predictions, prediction accuracy improved significantly. TODO: now link this to background section examples.
+
+This research also has significant implications for research into any interactive artistic system which functions with call-and-response generation. Each component heuristic is fine tunable and editable, and so by creating a user interface for the heuristic components of the system, the user can have significant control over the system's output. This allows for previously entirely generative composition systems to be modified to allow for a human to influence the system's output over time, and for interactive systems to allow for a human to influence the system's output over time, shifting compositions in a direction shaped by the human user, even when that user is not actively performing. This has significant implications for the future of interactive systems, and for the future of generative composition systems. TODO: link this to background section examples, including gestural performance, etc. This does not only apply to musical systems, but also to other artistic systems (TODO: cite examples).
+
+Similar areas are also impacted by the generalisability and customisability of the system. The ability to create and modify heuristics provides a flexible framework with can be adapted to many fields. For example, gestural performance systems could train machine learning models on individual and hard to formally define control parameters such as mood, and then link them to a body part or action, so that a system could be created which creates generative music, but with individual control parameters trained on human input being controlled by human gestures. The customisability of the system also has implications for cultural (TODO: continue and cite examples).
+
+This research also bridges the gap between musical research and research into other field where combined MCTS and machine learning systems are used. This includes game playing, natural language processing, and robot motion planning. The use of similar techniques to these fields provides a framework for potential crossover between these fields. For example, a modified version of our system could be used within the game AI field to create musical games where the search tree is generated using our systems approach. Research in the field of natural language processing also has crossover impact on musical analysis, as music is in a way a language, (CITE specific potential example). Crossovers with robot motion planning could also be made, for example robot instrument playing. These crossover applications do not have to be a mix of the two fields however, as there is likely even more impact provided by the new link in system architecture between these fields. For example, robot motion planning research using C-MCTS search has assisted in the development of many new advanced search techniques, such as the KR-AUCB C-MCTS selection strategy~\citep{Lei2021KBTree}, and now whenever these new devlopments in the robot motion planning field are made, they can be applied to the musical domain as well. This is a significant impact of this research, as it allows for the two fields to share and develop new techniques together, rather than having to develop them separately.
+
+Impact can also be found in human performance parameter detection. Our system is able to detect and track human performance parameters, and then use these to inform the MCTS search. Hence, this links our research to all other research where musical parameters such as genre, mood, etc are tracked. There is now a way to link these detection based papers into interactive systems, by utilising their parameter detection systems to generate heuristics which can inform interactivity and prediction. TODO (continue and cite examples).
+
+Our research also bridges the gap between heuristic and machine learning based music research. Using methods from our research, the benefits provided from both of these fields can be combined, and our evaluation shows that the disadvantages of each can also be mitigated through this combination. This allows for research from both mostly separately developed fields of research to be combined by using system designs such as ours which integrate machine learning and search. (TODO elaborate and cite examples)
+
+TODO: find a place to include reference to Collaborative Networked Instruments and impact on that field.
 
 \section{Limitations}
+TODO:
+Human performance data parameters are assessed and used statically, for example non-static tempos are not tracked, and if they were it would also be required to note that the expected tempo for MCTS search would be expected to change over time during system performance. This is the case for almost all possible heuristic components. Detection of parameters should be done constantly, tracking changes over time, and then during system performance estimating the optimal values for these parameters rather than assuming that they should be static (as they are certainly not static in human performance). This could be done by using a second RNN to predict the next state of the parameters, and then using these predicted values as the heuristic values for the MCTS search.
+
+TODO:
+Computational Cost: The use of MCTS, particularly with progressive widening, involves a computational cost. While efforts were made to optimize for the chosen instrument (e.g., avoiding kernel regression-based selection strategies due to minimal benefit ), a more complex instrument with more continuous dimensions might encounter performance bottlenecks without further optimization.
 TODO: simulation in MCTS is slow because of using the full RNN for predictions, typically MCTS will use a simpler calculation for simulation than it does for expansion to reach an end state, this could be tried?
+
+TODO: limited scope acted as a proof of concept, but doesn't prove that the system is generalisable as was one of the goals of the project.
+
+TODO:
+Heuristic Specificity for Freeform Improvisation: While the system showed significant improvements in structured improvisations, its performance in freeform improvisations was less pronounced. This is attributed to the reliance of certain heuristic components on specific musical structures like tempo and key signatures, which may be less defined in freeform contexts.
+
+TODO:
+Qualitative eval conducted only at the note level, possibly phrase level could provide additional insights? Provide partial points for generated phrases with correct contour?
+
+TODO:
+Could have evaluated against a hueirtic based system or rules based approach.
 \section{Future Work}
+TODO:
+testing stylistic heuristics
+
+TODO:
+Expanded Instrument and User Studies: Future work should aim to test the system on a wider array of instruments, including polyphonic instruments, and conduct larger user studies with musicians of varying skill levels and musical backgrounds. This would provide a more comprehensive understanding of the system's real-world applicability and identify potential challenges in different musical contexts.
+
+TODO:
+Adaptive Heuristics for Freeform Improvisation: To improve performance in freeform improvisations, research could focus on developing more adaptive heuristics that are less dependent on explicit musical structures. This might involve incorporating heuristics that emphasize texture, density, or other abstract musical qualities that are relevant in less structured settings. (could pair this with the neural network trained heuristics point? Combining with user interaction future work?)
 
 TODO:
 - if time, make the search time ms for each prediction based on the time of the last output and store one in advance.
