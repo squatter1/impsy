@@ -34,7 +34,7 @@ where $w_i$ is the total reward of the child node, $n_i$ is the number of visits
 
 Firstly, since the action space for the children of each node is a GMM and hence continuous, we need to discretize the action space for selection. We do this by using progressive widening. Progressive widening, instead of with discrete actions where all actions are expanded at once during the expansion phase, only expands one randomly sampled action from the action space when first expanding a node. Additional nodes are added during selection if an action reaches a threshold of visits. The number of children a node $z$ is permitted, $N_{z}$, is given by the formula:
 \begin{equation}
-    N_{z} \leq kn^{\alpha}
+    N_{z} = kn^{\alpha}
 \end{equation}
 where $n$ is the number of visits to the node, and $k$ and $\alpha$ are constants that control the growth of the action space. Whenever the calculated $N_{z_t}$ is greater than the actual number of children of $z_t$, the expansion process is triggered and a new child node is added if possible.
 
