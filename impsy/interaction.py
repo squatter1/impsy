@@ -204,8 +204,8 @@ class InteractionServer(object):
         self.call_response_mode = "call"
 
         # Set up structural variables
-        self.use_prediction_tree = True
-        self.rnn_output_memory_size = 25
+        self.use_prediction_tree = False
+        self.rnn_output_memory_size = 45
         self.rnn_output_memory = []
         self.rnn_prediction_tree = None
 
@@ -434,12 +434,15 @@ class InteractionServer(object):
 
 
                 self.rnn_prediction_tree.set_root(best_output[0])
+                print("Time:", best_output[0][0])
                 # End timer
                 end_time = time.time()
                 # Subtract the time taken for search from the output time
                 best_output[0][0] -= (end_time - start_time)
                 # If the time taken is negative, set it to 0.01
                 best_output[0][0] = max(best_output[0][0], 0.01)
+
+                
 
                 rnn_output = best_output[0]
                 neural_net.set_lstm_states(best_output[1])
