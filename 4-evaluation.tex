@@ -14,14 +14,32 @@ Prediction accuracy is the only relevant objective quantitative metric for evalu
 
 TODO: for evaluation subsection, start with an intro 'this subsection provides the most relevant understanding of how the system comes together as a whole and how individual components work together to create strong results (explain for all subsections to follow)
 
-%TODO: Add a paragraph specifying the hardware specifications used for all evaluations. Include CPU model, RAM amount, GPU if applicable, and operating system version.
+All evaluations were conducted on a Dell G15 laptop with a 12th generation Intel i7-12700H CPU and 16GB of RAM. Since only CPU not GPU was used, and RAM was never fully utilised by the system, the processor is the main important element. The system was implemented in Python 3.11 using Tensorflow 2.15 for the neural network, with tflite models used for increased prediction speed.
 
 \subsection{Datasets}
 %TODO: Add citation information for the datasets according to Charles' recommendation. Include the proper format for citing datasets with DOIs if applicable, or provide a reference to the original source of the Nottingham Folk Music Database.
 
 Two datasets were used to evaluate the system, the first is a dataset of 15 improvisations performed by the first author of this thesis. IMPSY is intended to function based on small models trained on personalised datasets of improvisations tuned to a sepcific performers style, and so this dataset is important for evaluating the system on one of its core intended use cases. The 15 improvisations contain a total of 11142 notes, and were performed as monophonic keyboard improvisations with the details of the model in mind. Cross-validation was used for all evaluations of this dataset, creating 15 models, each trained on 14 improvisations and evaluated on the remaining improvisation. This ensures that the model does not do well on evaluation metrics by simply overfitting to training data, and each improvisation had slightly different styles, tempos, keys and improvisational goals in order to further limit the possibility of overfitting.
 
+The weighting of each heuristic component for this dataset was based on prediction accuracy for individual heuristics and informal qualitative testing, and is as follows:
+\begin{itemize}
+    \item Key and modal heuristic: 10\%
+    \item Tempo and swing heuristic: 3.3\%
+    \item Pitch interval markov model heuristic: 66.7\%
+    \item Time multiple heuristic: 6.7\%
+    \item Repetition heuristic: 13.3\%
+\end{itemize}
+
 For the second dataset, we used the Nottingham Folk Music Database. While this dataset does not contain compositions originally made monophonically, it does split each piece into a clearly defined chords and a monophonic melody, and so it is a good dataset to evaluate the system on. We take only the melody part of each piece, for a total of 1034 pieces and 196961 notes, and convert them into log files containing only the two dimensions of note duration and pitch for training. This dataset is also udeful as it is all within a similar style, and so is good for stylistic evaluation. From these 28 random melodies of at least 200 notes were selected as a test set, with a total of 11237 notes. The rest of the dataset was used to train a single model. A larger model size was used for this dataset, which is another benefit of using this second dataset, as it allows us to test whether our system improves performance even for models trained on larger datasets. A notable limitation of this dataset is that it does not contain tempo information, and so random tempos are assigned to each piece.
+
+The weighting of each heuristic component for this dataset was determined the same way as for the improvisation dataset, and is as follows:
+\begin{itemize}
+    \item Key and modal heuristic: 12.2\%
+    \item Tempo and swing heuristic: 14.6\%
+    \item Pitch interval markov model heuristic: 12.2\%
+    \item Time multiple heuristic: 12.2\%
+    \item Repetition heuristic: 48.8\%
+\end{itemize}
 
 When evaluating a particular test piece from one of these datasets, the model takes the first 45 notes as its initial output memory, and then predicts the 46th note. Then the first note is dropped from memory, the actual 46th note is added, and the model predicts the 47th note. This process continues until the end of the test set, at which point it moves on to the next until all test sets have been evaluated. A prediction is considered correct if the exact correct pitch is predicted and the note duration is within an 8\% margin of error from the exact correct value. This 8\% figure was established through experiments with the tempo and swing heuristic, as from testing an average deviation of 8\% seemed to be the limit for where a tempo was clearly perceptable. Hence, it made sense to also use this as the cutoff figure for duration deviation in the evaluation. This may provide a slight bias in favour of the tempo and swing heuristics performance, as the evaluation metric matches how the heuristic was setup, but given that it was established through repeatable and logical testing and not a purposeful intention to bias, it is firstly not a major concern, and secondly shouldn't bias results very much from if independent tests were used to arrive at these two figures. The number of correctly predicted notes is tracked, and divided by the total number of predicted notes to give a prediction accuracy percentage. 
 
