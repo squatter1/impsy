@@ -421,7 +421,7 @@ def time_multiple_markov_memory(memory: np.ndarray, order: int = 2) -> Tuple:
     
     # Calculate multiples between consecutive time intervals
     multiples = []
-    valid_multiples = [0.125, 0.25, 0.375, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0]
+    valid_multiples = [0.125, 0.25, 0.33, 0.5, 0.67, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0]
     common_multiples = [0.25, 0.5, 1.0, 2.0, 4.0]  # Common multiples for music
     
     for i in range(len(time_intervals) - 1): 

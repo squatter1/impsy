@@ -125,6 +125,10 @@ class MCTSPredictionTree:
             # Get the heuristic value for this function
             self.heuristic_memories.append(heuristic_function[0](self.initial_memory))
 
+        # TODO: delete
+        print(f"Scale: {self.heuristic_memories[0][1]} Root: {self.heuristic_memories[0][2]} Conformity: {self.heuristic_memories[0][0]}")
+        print("Tempo:", self.heuristic_memories[1])
+
     def set_root(self, new_root_output: np.ndarray) -> None:
         """Set the new root to the child of the current root with the given output"""
         # Find the child with the given output

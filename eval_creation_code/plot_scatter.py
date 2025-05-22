@@ -4,10 +4,9 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 from scipy.optimize import curve_fit
 
-# Generate sample data - replace this with your actual data
 # X values: number of nodes (generated on a logarithmic scale)
 nodes = [1, 2, 3, 6, 10, 18, 32, 56, 100, 178, 316, 562, 1000]
-#nodes = [1.18, 3.325, 3.695, 11.97, 24.485, 28.91, 48.185, 91.365, 158.79, 286.805, 516.38, 924.28, 1637.185]
+#times = [1.18, 3.325, 3.695, 11.97, 24.485, 28.91, 48.185, 91.365, 158.79, 286.805, 516.38, 924.28, 1637.185]
 #accuracy = [1.18, 3.325, 3.695, 11.97, 24.485, 28.91, 48.185, 91.365, 158.79, 286.805, 516.38, 924.28, 1637.185]
 # Y values: prediction accuracy (random values between 70-95%)
 accuracy = [2.92, 2.95, 3.13, 3.84, 3.97, 4.19, 4.61, 4.72, 4.92, 5.26, 5.34, 5.56, 5.34]
@@ -80,13 +79,19 @@ r_squared = 1 - (ss_residual / ss_total)
 plt.figure(figsize=(10, 8), dpi=300)
 
 # Create the scatter plot
-plt.scatter(nodes, accuracy, color='blue', s=80, alpha=0.7, label='Data')
+plt.scatter(nodes, accuracy, color='#25cdd8', s=150) # alts: #25cdd8, #875cc8
 
 # Add the asymptotic curve fit
-plt.plot(x_smooth, y_fit, 'r-', linewidth=2, label=f'Asymptotic Fit (Max ≈ {a_opt:.1f}%)')
+plt.plot(x_smooth, y_fit, 'r-', linewidth=4, alpha=0.85, label=f'Asymptotic Fit (Max ≈ {a_opt:.1f}%)')
+
+# Add a h-line at y=3.02 with legend label 'Unguided MDRNN'
+plt.axhline(y=3.02, color='green', linestyle='--', linewidth=2, label='Unguided MDRNN (3.02%)')
+
+# Set y min to 0 (leave max to auto)
+plt.ylim(bottom=0)
 
 # Set axis labels with font size 16
-plt.xlabel('Number of Nodes', fontsize=16)
+plt.xlabel('Monte Carlo Tree Search Iterations', fontsize=16)
 plt.ylabel('Prediction Accuracy (%)', fontsize=16)
 
 # Set x-axis to log scale
@@ -101,12 +106,8 @@ formatter = ScalarFormatter()
 formatter.set_scientific(False)
 plt.gca().xaxis.set_major_formatter(formatter)
 
-# Add a legend
-plt.legend(fontsize=16)
-
-# Add R-squared value in bottom right corner
-plt.text(0.7, 0.05, f"R² = {r_squared:.3f}", 
-         transform=plt.gca().transAxes, fontsize=16)
+# Add a legend in the bottom right corner
+plt.legend(fontsize=16, loc='lower right')
 
 # Adjust layout
 plt.tight_layout()
