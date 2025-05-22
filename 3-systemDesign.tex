@@ -3,22 +3,22 @@
 This chapter describes the main content of our research. We begin by providing an overview of the problem our system is trying to solve, define components necessary for understanding this problem, and explain the scope of this problem we specifically tackle and why. We then present an overview of the successor algorithm we have created to attempt to solve this problem, before going into more depth on each the components of this algorithm, including details on their implementation. This includes the Monte Carlo Tree Search (MCTS) algorithm and how it has been integrated into IMPSY, our use of parameter based state representation to build a novel heuristic, and the parameters we have developed to integrate into this heuristic. Videos of the performances using the system, which are also used in our evaluation, as well as the code for the system, can be found on Github\footnote{\url{https://github.com/squatter1/impsy}}
 
 \section{Problem Formulation}
-It is important to clearly define the problem this system is trying to solve in a more formal manner than previously, before explaining the system itself. We build our work on top of the musical prediction system IMPSY~\cite{Martin2019IMPSY}, which is a system that uses a MDRNN to produce a GMM of possible next notes, with this GMM being randomly sampled from to produce a note. We are specifically interested in the call and response mode of IMPSY, where the user performs for a period of time, and then when the user stops, the system takes over and aims to predictively continue on from where the user left off. When the system takes over, the MDRNN prediction algorithm is triggered. The input for this MDRNN algorithm is the previous control input played, which is an $n$ dimensional vector representing the state of control parameters for an instrument, necessarily including a time dimension representing the length of time between this control input and when the next control input should happen. The input state also implicitly includes memory of previous control inputs through the LSTM RNN architecture. The output of the MDRNN is a random sample from an $n$ dimensional GMM, with any sample from the GMM representing a control input for the instrument. Our problem formulation is the same as with IMPSY, with our only goal being to improve the prediction process, not to fundamentally change the functionality of IMPSY. Figure~\ref{fig:IMPSY} shows the original IMPSY prediction system, and Figure~\ref{fig:Successor} highlights how our prediction system incorporates and expands upon this. 
+It is important to clearly define the problem this system is trying to solve in a more formal manner than previously, before explaining the system itself. We build our work on top of the musical prediction system IMPSY~\cite{Martin2019IMPSY}, which is a system that uses a MDRNN to produce a GMM of possible next notes, with this GMM being randomly sampled from to produce a note. We are specifically interested in the call and response mode of IMPSY, where the user performs for a period of time, and then when the user stops, the system takes over and aims to predictively continue on from where the user left off. When the system takes over, the MDRNN prediction algorithm is triggered. The input for this MDRNN algorithm is the previous control input played, which is an $n$ dimensional vector representing the state of control parameters for an instrument, necessarily including a time dimension representing the length of time between this control input and when the next control input should happen. The input state also implicitly includes memory of previous control inputs through the LSTM RNN architecture. The output of the MDRNN is a random sample from an $n$ dimensional GMM, with any sample from the GMM representing a control input for the instrument. Our problem formulation is the same as with IMPSY, with our only goal being to improve the prediction process, not to fundamentally change the functionality of IMPSY. Figure~\ref{fig:IMPSY} shows the original MDRNN-IMPSY prediction algorithm, and Figure~\ref{fig:Prediction} highlights how the MCTS-IMPSY prediction system designed in this thesis incorporates and expands upon this prediction process. 
 
 \begin{figure}[th!]
     \includegraphics[width=14cm]{figures/impsy.jpg}
-    \caption{Reproduction of Figure 2 from~\cite{Martin2019IMPSY} showing the IMPSY prediction process.\label{fig:IMPSY}}
+    \caption{Reproduction of Figure 2 from~\cite{Martin2019IMPSY} showing the MDRNN-IMPSY prediction algorithm.\label{fig:IMPSY}}
 \end{figure}
 
 \subsection{Scope of our Research}
 Our research aims to be a proof of concept for the use of a combined MDRNN and MCTS prediction system, and so we have limited the scope of our research to a single instrument, a monophonic 2D keyboard. While our system design is generalisable to other instruments, testing on a simple instrument allows us to focus on the core components of our system without adding unnecessary complexity. The first dimension is the required time interval dimension between control inputs, and the second dimension is pitch, which is rounded to the nearest semitone for output. Our scope is also limited to a single user, the first author of this thesis, who is a trained musician and has experience with improvisation. Ideally, a larger user study would be conducted, but was not a practical option for this project. For the evaluation of our system, we use multiple datasets to train separate models on the keyboard, and so breadth of style within the limits of a 2D monophonic keyboard is within the scope of our research. 
 
 \section{The Prediction Algorithm}
-The prediction algorithm we have developed is aimed at guiding the choice of the next control input, instead of randomly sampling it from the GMM. To do this, we create a tree of possible future control inputs over multiple predictive time steps, and choose the most promising branch of this tree to take based on a heuristic. This heuristic aims to immitate a human performers checks and balances when improvising, ensuring that intuitive musical options, which are represented by the GMM, are also musically coherent. Hence, the heuristic is based mostly on musical parameters that psychological research, as well as musical studies, have shown to be relevant the the perceptions and predictions of music by humans. The algorithm is designed to be flexible, with the exact heuristics used being customisable to the instrument used, as well as specific goals of performance or musical norms particular to a specific style or culture. All but one of the parameters used in our heuristic are generalisable to any instrument with a continuous pitch and time dimension, with the exclusion having the only additional limitation of a discrete tuning system. This is a benefit of choosing a lower dimensional instrument, and allows our heuristic configuration to act as a baseline for more specific ones to build upon. Figure~\ref{fig:Successor} shows the overall structure of our prediction algorithm, and each referenced component will be explained in more detail in the following sections.
+The prediction algorithm we have developed is aimed at guiding the choice of the next control input, instead of randomly sampling it from the GMM. To do this, we create a tree of possible future control inputs over multiple predictive time steps, and choose the most promising branch of this tree to take based on a heuristic. This heuristic aims to immitate a human performers checks and balances when improvising, ensuring that intuitive musical options, which are represented by the GMM, are also musically coherent. Hence, the heuristic is based mostly on musical parameters that psychological research, as well as musical studies, have shown to be relevant the the perceptions and predictions of music by humans. The algorithm is designed to be flexible, with the exact heuristics used being customisable to the instrument used, as well as specific goals of performance or musical norms particular to a specific style or culture. All but one of the parameters used in our heuristic are generalisable to any instrument with a continuous pitch and time dimension, with the exclusion having the only additional limitation of a discrete tuning system. This is a benefit of choosing a lower dimensional instrument, and allows our heuristic configuration to act as a baseline for more specific ones to build upon. Figure~\ref{fig:Prediction} shows the overall structure of our prediction algorithm, and each referenced component will be explained in more detail in the following sections.
 
 \begin{figure}[th!]
-    \includegraphics[width=14cm]{figures/mcts-overview.jpg}
-    \caption{Our MCTS based prediction process.\label{fig:Successor}}
+    \includegraphics[width=12cm]{figures/MCTS-IMPSY-prediction-algorithm.png}
+    \caption{The MCTS IMPSY prediction algorithm.\label{fig:Prediction}}
 \end{figure}
 
 \subsection{Monte-Carlo Tree Search}
@@ -52,8 +52,8 @@ After reaching a leaf node, the MDRNN prediction algorithm is run to generate a 
 During progressive widening, $c$ candidate actions are randomly sampled from the GMM. Each of these candidates are checked to ensure a distance of at least $\epsilon$ away from all existing child actions. As each dimension in the action space represents a different control parameter, different $\epsilon$ values are applied to each dimension, and a candidate action must be unique in at least one of them.$\epsilon$ also doesn't have to function as a linear distance metric, multiplicative distances and other equations can also be used. If at least one such unique action is found, then the most unique is added, where uniqueness is the sum across all dimensions of $\epsilon$ for the closest existing node, with a scaling factor applied to each dimension to account for different scales of uniqueness. If no candidate action is found the be unique progressive widening fails and no new child node is added. This is done to ensure that the search tree does not grow without reasonable exploratory potential. If progressive widening is attempted and failed 5 times in a row, it is presumed that all potential actions with any reasonable likelihood of occuring have already been added to the search tree, and so progressive widening will be disabled for this node for the remainder of the search. Figure~\ref{fig:ProgressiveWidening} visually explains the progressive widening process.
 
 \begin{figure}[th!]
-    \includegraphics[width=9cm]{figures/MCTS-figure-draft.jpg}
-    \caption{TODO: make this specifically a figure explaining progressive widening. C-MCTS algorithm applied to IMPSY.\label{fig:ProgressiveWidening}}
+    \includegraphics[width=14cm]{figures/progressive-widening.png}
+    \caption{The progressive widening process in MCTS-IMPSY.\label{fig:ProgressiveWidening}}
 \end{figure}
 
 Another component of progressive widening used for expansion in the literature is baysian optimisation~\citep{Mern2021BayesianMCTS}. Baysian optimisation aims to account for three key factors when expanding the action space. Firstly, which part of the action space is the most likely to be optimal based on previous searches around the area, secondly which part of the action space is the most uncertain, and thirdly how unique the candidate action is from pre-existing ones. Our method accounts for uniqueness, but does not account for uncertainty or optimality. This is because in our model nodes which were regularly visted would soon begin to fail progressive widening, meaning that no more unique actions could be added which the MDRNN gives a reasonable likelihood. This means that the entire action space is explored except for actions which is extremely unlikely or not unique enough, and hence all optimal and uncertain areas are explored without the need for a computationally expensive baysian optimisation process. As with kernal regression based selection strategies, it is likely that a model trained on an instrument with more continuous dimensions could reach a point where baysian optimisation would be beneficial, but this is not the case for our model.
@@ -144,6 +144,11 @@ Each of the following subsections details one of the musical parameters used in 
 
 \subsection{Key and Modal Conformity}
 
+\begin{figure}[th!]
+    \includegraphics[width=11.1cm]{figures/todo.jpg}
+    \caption{TODO: A diagram showing a simplification of how key and modal conformity is measured.\label{fig:TODO}}
+\end{figure}
+
 Key and modal conformity measures how well musical branches adhere to the established musical scale and mode in the output memory, if such a scale and mode clearly exists.~\cite{Temperley2008MelodyPerception} explores this through the concept of a key profile, noting that keys and modes are key factors in human prediction of the likelihood of musical continuations, particularly in Western music. The key profiles model is based on two observations about melodies which conform to a particular key. Firstly that notes within that key are significantly more likely to be used than those outside of it, and secondly that notes of the tonic triad, the root, third, and fifth of the scale, are slightly more likely to be used than other notes within the key. However, the likelihoods of each note are combined into a single key profile in this paper, which only accounts for natural major and minor scales, showing the increased use of the sharp sixth and seventh degrees in minor scales as small increases in usage within a natural minor key profile, instead of recognising the distinction of melodic and harmonic minor scales, and completely ignoring the use of other modes and key types.
 
 To address these limitations we modify the key profiles methodology from the above paper into two parameters, a key conformity and modal conformity parameter, which combine as one of the five individual parameter heuristics combined into the final heuristic for our system. Key conformity doesn't account for a root note, and instead only looks at the relative use of notes within a given scale. Because of this it is a lot easier to include more varieties of scale, and our parameter tests against four common scale types: major, pentatonic, blues, and harmonic minor; although it is trivial to add more if relevant to a particular style. For each scale type, the algorithm considers all possible transpositions (root notes) and calculates a conformity value for the output memory using the formula: 
@@ -160,14 +165,12 @@ Where $b_k$ and $m_k$ are the branch and memory key conformity values, $b_m$ and
 
 This dual approach to key profiles allows the system to maintain consistency with the performer's key and mode if they are adhering to one, while not affecting results if it is not clear that they are. The algorithm also adapts to the performer's level of key adherence, preferencing occasional out of key notes if they are present in the output memory. The separation into two parameters also allows for more versitility, incorporating any desired scale in any mode. Unlike the other heuristics in the system, key and modal conformity is specific to instruments using twelve-tone equal temperament (12TET) or another tuning system with discrete notes if adapted, as the existence of keys and modes relies on this. Hence, in a loose sense this is an example of how more instrument and style specific parameters can be integrated into the system to enhance its performance for particular contexts.
 
-TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.
+\subsection{Tempo and Swing Conformity}
 
 \begin{figure}[th!]
     \includegraphics[width=11.1cm]{figures/todo.jpg}
-    \caption{TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.\label{fig:TODO}}
+    \caption{TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.\label{fig:TODO2}}
 \end{figure}
-
-\subsection{Tempo and Swing Conformity}
 
 Tempo and swing conformity measures how well musical branches adhere to the established tempo and swing in the output memory, if a constant tempo and swing clearly exists. Tempo and swing are fundamental rhythmic parameters in music that play a large part in rhythmic expectation and prediction.~\cite{Laroche2001TempoEstimation} discusses this importance, and establishes a method for estimating the tempo (speed), swing (rhythmic inequality of eighth notes), and downbeat (the first and usually strongest beat of a measure) of a piece of music. This method starts from an audio track, first establishing the location of notes from the audio, before performing analysis on these note locations to establish rythmic parameters. Since our system receives note locations directly as control inputs, we skip the first step of this process. Establishing downbeats also relies on the volume of notes, which is not available in our current 2D keyboard implementation, and so only tempo and swing are used in our system, with a modified implementation.
 
@@ -184,14 +187,12 @@ When evaluating potential branches in the search tree, the heuristic determines 
 
 This approach scales the relative effect of this heuristic based on the level of tempo conformity in the output memory, as well as with an additional overall scaling multiplier. It rewards branches that best maintain the established tempo and swing of the output memory where this tempo and swing is clear, and does not have an effect where it is not, hence not negatively affecting results where the performer is using variable tempo or swing.
 
-TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.
+\subsection{Pitch Interval Markov Model}
 
 \begin{figure}[th!]
     \includegraphics[width=11.1cm]{figures/todo.jpg}
-    \caption{TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.\label{fig:TODO2}}
+    \caption{TODO: do we need a figure here? Add at the end.\label{fig:TODO3}}
 \end{figure}
-
-\subsection{Pitch Interval Markov Model}
 
 The Pitch Interval Markov Model heuristic captures melodic patterns by analyzing the intervals between consecutive notes. Early experiments into melody distortion by~\citep{White1960MelodyRecognition} tested which changes to melody most affected recognition, and established the importance of melodic contour and interval size.~\citep{Dowling1971Contour} conducted more rigourous experiments on these factors in particularly, and showed that there are three levels to melody recognition. The most fundamental of these is the maintainence of contour, or the direction of pitch movement from each note to the next. One step above this is the maintainence of intervals, or the distance between each note. The final level is the maintainence of absolute pitch, or in essense repetition of the same melody. The addition of each of these factors improves melody recognition. These factors have later been used to to establish their importance in melody prediction~\citep{Temperley2008MelodyPerception}, with it seeming that memory of the direction of pitch and intervals between notes in a melody significantly influence perceived probability of melodic continuations. Hence, we aim to recreate this prediction process as a heuristic parameter in our system.
 
@@ -208,7 +209,7 @@ The model is contructed as follows:
 For example, a key of 2 with a value mapping of \{1: 5, -4: 2\} indicates that after the melody moved up by 2 semitones in the output memory, there were five instances where it then moved up by 1 semitone and two instances where it moved down by 4 semitones.
 
 When evaluating branches in the search tree, the branches are converted to interval sequences in the same way as the output memory. The heuristic then calculates the probability of each interval transition in the branch according to the generated markov model. This is based on the frequencies in the markov model, with Laplace smoothing applied to account for the fact that intervals not observed in th output memory should still have some probability of occuring. The formula for calculating the transition probability with smoothing is:
-% TODO fix math error
+TODO fix latex error and uncomment equation
 %$P\left( \text{next interval} \mid \text{current interval} \right) = \frac{\text{count}(\text{current_interval}, \text{next_interval})+ \alpha}{\text{count}(\text%{current_interval})} + \alpha\left|\text{transitions}\right|$
 %Where $\text{count}(\text{current_interval}, \text{next_interval})$ is the number of times in the model that the next interval follows the current interval, $\text{count}%(\text{current_interval})$ is the total number of transitions from the current interval, $|\text{transitions}|$ is the number of unique transitions observed from the current %interval, and $\alpha$ is the Laplace smoothing parameter, which through testing was set to 0.1.
 
@@ -217,14 +218,12 @@ The system calculates the average probability across all transitions in the bran
 This formulation ensures that branches with interval patterns similar to those in the performer's playing receive lower heuristic scores (indicating better conformity), while branches containing unusual or unseen interval sequences receive higher scores.
 The interval Markov model is particularly effective at capturing the characteristic "vocabulary" of melodic patterns a performer uses while allowing for creative variations within that style. By focusing on intervals rather than absolute pitches, the model generalizes across different keys and registers, making it applicable to a wide range of musical contexts and styles from simple diatonic melodies to complex chromatic passages. It is partciularly useful during sections where repeated intervalic patterns are present, such as an arpeggio.
 
-TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.
+\subsection{Time Multiple Markov Model}
 
 \begin{figure}[th!]
     \includegraphics[width=11.1cm]{figures/todo.jpg}
-    \caption{TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.\label{fig:TODO3}}
+    \caption{TODO: do we need a figure here? Add at the end.\label{fig:TODO4}}
 \end{figure}
-
-\subsection{Time Multiple Markov Model}
 
 Rhythmic contour has been found to be at least as important as pitch contour in melody perception~\citep{Dowling1999RhythmContour}. Similar experiments to those performed by~\citep{Dowling1971Contour} for pitch contour have also be performed for rhythmic contour, and have shown very similar results~\citep{Schmuckler2023RhythmContour}. Given the similarities between these two factors, for this heuristic we use a very similar approach to the pitch interval markov model heuristic. However, there are two important differences in model construction. Firstly, the time multiple markov model uses the ratios between consecutive note durations rather than the difference between them. This is because it is relative proportions which determine rhythmic patterns and equate to the role of intervals in pitch. Technically, for pitch intervals ratios were also used, however since frequency values are converted to MIDI notes numbers, multiplicative distances are converted to additive distances. The second difference is that time operates on a continuous scale in our model, whereas pitch operates on a discrete scale. Hence for a markov model to work, multiples between pitches must first be quantized to a discrete scale. These time multiples are quantized to the multiplicatively closest value in the set $\text{Valid multiples} = {0.125, 0.25, 0.33, 0.5, 0.67, 1.0, 1.5, 2.0, 3.0, 4.0, 8.0}$, with a small distance penalty for multiples outside of the set $\text{Common multiples} = {0.25, 0.5, 1.0, 2.0, 4.0}$.
 
@@ -239,20 +238,18 @@ The model is contructed as follows:
 For example, a key of 0.25 with a value mapping of \{4: 3, 3: 1\} indicates that after a given note had a quarter of the duration of its predecessor, there were three instances where the next note had four times the duration of that given note, and one instance where the next note had three times the duration.
 
 Once this markov model is constructed, the process to evaluate branches is the same as for the pitch interval markov model. The transition probabilities are calculated using the same laplace smoothing constant of $\alpha = 0.1$, using the formula:
-% TODO fix math error
+TODO fix latex error and uncomment equation
 %\[P(\text{next_multiple}\mid\text{current_multiple}) = \frac{\text{count}(\text{current_multiple}, \text{next_multiple}) + \alpha}{\text{count}(\text{current_multiple}) + %\alpha \times |\text{transitions}|}\]
 The system then calculates the average probability across all transitions in the branch and returns a scaled inverse as the heuristic score:
 \[\text{heuristic} = (1 - \text{average probability}) \times \text{multiplier}\]
 The Time Multiple Markov Model is particularly effective at capturing rhythmic patterns, and can do so even when there is no strict tempo sue to the note by note way that quanitzation is done.
 
-TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.
+\subsection{Repetition Markov Model}
 
 \begin{figure}[th!]
     \includegraphics[width=11.1cm]{figures/todo.jpg}
-    \caption{TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.\label{fig:TODO4}}
+    \caption{TODO: do we need a figure here? Add at the end.\label{fig:TODO5}}
 \end{figure}
-
-\subsection{Repetition Markov Model}
 
 The Repetition Markov Model heuristic identifies repetition by combining pitch intervals and time multiples from the previous two heuristics into a single second-order markov model.~\citep{Duane2016Repetition} shows that identifying repetition plays a key role in musical prediction probabilities, but also that to maintain originality and prominent sections within a piece, this repetition must be balanced with variation. To create this balance, strict rules are placed on when the repetition model comes into effect. No Laplace smoothing is applied, and the second-order model ensures that this heuristic will only influence the search tree when a clear motif is established through multiple note transitions in a row which are repeated. The maintainence of relative instead of absolute measures of pitch and time also allows for transposed motifs to be recognised, which is important for the system to be able to change keys and perform well in different octaves.
 
@@ -271,7 +268,7 @@ The model is contructed as follows:
 For example, a key of ((2, 1.0), (-3, 0.5)) with a value mapping of \{(1, 2.0): 3\} indicates that after an upward step of 2 semitones with equal duration followed by a downward movement of 3 semitones at half the previous duration, the next event was always an upward step of 1 semitone with twice the previous duration, and this specific pattern occurred three times in the output memory.
 
 Unlike the other Markov models, the Repetition Markov Model does not apply Laplace smoothing to unseen transitions. Instead, it assigns a probability of zero to any state-transition pair that was not observed in the performer's playing. This design choice deliberately emphasizes exact repetition of musical motifs, and leads to the following transition probability calculation:
-% TODO fix math error
+TODO fix latex error and uncomment equation
 %\[P(\text{next note}\mid\text{state}) = \begin{cases}
 %\frac{\text{count}(\text{state}, \text{next note})}{\text{count}(\text{state})}, \& \text{if the transition was observed} \
 %0, \& \text{otherwise}
@@ -279,13 +276,6 @@ Unlike the other Markov models, the Repetition Markov Model does not apply Lapla
 The system calculates the average probability across all transitions in the branch and returns a scaled inverse as the heuristic score:
 $\text{heuristic} = (1 - \text{average probability}) \times \text{multiplier}$
 This formulation ensures that branches containing exact repetitions of motifs from the performer's playing receive lower heuristic scores (indicating better conformity), while branches with novel combinations receive higher scores. However, in instances where the performer has not established a clear motif, this heuristic will not influence the search tree, allowing other heuristics to guide the search. This encourages the continuation of established motifs and thematic material to reinforce the structural coherence of the performance, but limits its potential negative impact on the originality of the generated music.
-
-TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.
-
-\begin{figure}[th!]
-    \includegraphics[width=11.1cm]{figures/todo.jpg}
-    \caption{TODO: analyse a figure showing a short piece of sheet music and two possible continuations, provide an example heuristic evaluation of them.\label{fig:TODO5}}
-\end{figure}
 
 \subsection{Failed Parameters}
 

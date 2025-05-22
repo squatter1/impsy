@@ -9,8 +9,10 @@ Within NIME research, what constitutes and evaluation is much more broad than in
     \item \textbf{Approach:} Prediction accuracy and speed are evaluated quanitatively, whereas the playability and expressiveness of the system are evaluated qualitatively.
 \end{itemize}
 
-\section{Prediction Performance}
+\section{Prediction Accuracy}
 Prediction accuracy is the only relevant objective quantitative metric for evaluating the system. Given that the system is an interactive musical prediction system, its prediction accuracy is essential to its success. If the system is not able to predict the next note in a piece of music with any accuracy, then it will not be able to create a coherent improvisation.
+
+TODO: for evaluation subsection, start with an intro 'this subsection provides the most relevant understanding of how the system comes together as a whole and how individual components work together to create strong results (explain for all subsections to follow)
 
 %TODO: Add a paragraph specifying the hardware specifications used for all evaluations. Include CPU model, RAM amount, GPU if applicable, and operating system version.
 
@@ -23,12 +25,10 @@ For the second dataset, we used the Nottingham Folk Music Database. While this d
 
 When evaluating a particular test piece from one of these datasets, the model takes the first 45 notes as its initial output memory, and then predicts the 46th note. Then the first note is dropped from memory, the actual 46th note is added, and the model predicts the 47th note. This process continues until the end of the test set, at which point it moves on to the next until all test sets have been evaluated. A prediction is considered correct if the exact correct pitch is predicted and the note duration is within an 8\% margin of error from the exact correct value. This 8\% figure was established through experiments with the tempo and swing heuristic, as from testing an average deviation of 8\% seemed to be the limit for where a tempo was clearly perceptable. Hence, it made sense to also use this as the cutoff figure for duration deviation in the evaluation. This may provide a slight bias in favour of the tempo and swing heuristics performance, as the evaluation metric matches how the heuristic was setup, but given that it was established through repeatable and logical testing and not a purposeful intention to bias, it is firstly not a major concern, and secondly shouldn't bias results very much from if independent tests were used to arrive at these two figures. The number of correctly predicted notes is tracked, and divided by the total number of predicted notes to give a prediction accuracy percentage. 
 
-\subsection{Heuristic Component Evaluations}
-TODO: for evaluation subsection, start with an intro 'this subsection provides the most relevant understanding of how the system comes together as a whole and how individual components work together to create strong results
+\subsection{Pitch Prediction Accuracy}
 
+TODO: include in this paragraph why this is important
 To understand where the overall performance of the system comes from, it is important to evaluate how each heuristic component of the system performs in isolation, and also how it contributes to the overall performance of the system. We also break down the prediction accuracy metric into its two components, pitch and duration, to gain a better understanding of how the system performs in each of these areas, and the contribution of each component heuristic. In this subsection all predictions are conducted with a 100ms search time limit, to imitate a typical amount of search time which may be available in a real-time performance setting. All component heuristic evaluations are compared to two baselines, the predictive accuracy of the unguided MDRNN, representing the performance of the original IMPSY system without MCTS search, and the combined heuristic, representing the performance of our system with all heuristics combined and weighted. It is important to note that the two datasets provide quite different scales of accuracy, with accuracy being much higher for the Nottingham dataset. This is likely due to the fact that the Nottingham dataset is a larger and more structured dataset, while the improvisation dataset is smaller and more freeform. The Nottingham dataset also contains significantly more repetition than the improvisation dataset. These differences make the variation in performance for the improvisation dataset much more difficult to see on a combined graph, and the graph also becomes more cluttered. Hence, separate figures are provided for each dataset for all evaluations, and for clarity at a glance, improvisation dataset figures are shown in teal whereas nottingham dataset figures are hown in purple.
-
-\subsubsection{Pitch Prediction Accuracy}
 
 Firstly, individual component heuristic performance for pitch accuracy is evaluated for the improvisation dataset in figure~\ref{fig:individual_pitch_improv} and for the nottingham dataset in figure~\ref{fig:individual_pitch_nottingham}. Pitch accuracy is calculated by judging a prediction as correct if the predicted pitch is correct, regardless of the predicted time interval.
 
@@ -44,7 +44,7 @@ Firstly, individual component heuristic performance for pitch accuracy is evalua
 
 The key and modal and pitch interval heuristics unsurprisingly performed the best for pitch prediction, as they both focus on pitch. The repetition heuristic also performed well since it incorporates pitch information. As expected, the key and modal heuristic and the repetition heuristic performed significantly better on the nottingham dataset, where repetition and consistent keys were much more common, than they did on the improvisation dataset. The pitch interval heuristic performed strongly on both datasets, as it is not dependent on clear structural features. For the tempo and swing, and the time multiple heuristics, the performance was similar to unguided prediction in the nottingham dataset, and notably lower for the improvisation dataset. While it might be expected that these heuristics should perform very similarly to unguided prediction, given that they do not focus on pitch, a lowered prediction accuracy is not unexpected. This is because heuristic guidance which is not relevant to prediction accuracy only serves to dilute the relative probabilities of note options already provided by the MDRNN. While the MDRNNs most likely prediction could be the correct pitch, if a pitch agnostic heuristic is used, it will bias the search toward potential options with more likely time intervals, regardless of whether these options have significantly less likely pitch options. This is a key point to note, as it displays how heuristics must have a clear actively positive impact on prediction accuracy to provide a benefit to the system, as a neutral heuristic will have a negative impact by diluting the probability of the MDRNNs most likely options. Hence, the prediction accuracy not decreasing for the time interval focused heuristics in the nottingham dataset is the more surprising result. This could be explained by stronger correlation of rhythm and pitch, more regular rhyhtmic patterns, or some other factor or combination of factors in the nottingham dataset.
 
-\subsubsection{Duration Prediction Accuracy}
+\subsection{Duration Prediction Accuracy}
 
 Next, the duration prediction accuracy of each component heuristic is evaluated for the improvisation dataset in figure~\ref{fig:individual_time_improv} and for the nottingham dataset in figure~\ref{fig:individual_time_nottingham}. Duration accuracy is calculated by judging a prediction as correct if the predicted time interval is within 8\% of the correct value, regardless of the predicted pitch.
 
@@ -60,7 +60,7 @@ Next, the duration prediction accuracy of each component heuristic is evaluated 
 
 Once again, the relative performance of the heuristics in unsurprising. The tempo and swing heuristic and time multiple heuristic performed the best, as they are both focused on time intervals, with the time multiple heuristic performing well for both datasets, and the tempo and swing heuristic performing significantly better on the more structured nottingham dataset, with barely any effect on the improvisation dataset where tempo was much less consistent. Interestingly, the negative effect of neutral heuristics was significantly more pronounced for the duration prediction accuracy than it was for the pitch prediction accuracy. This effect was so strong that it brought the repetition heuristic back to being level with the unguided MDRNN for both datasets, and for the improvisation dataset it led to the combined heuristic underperforming unguided MDRNN predictions. It is hard to know exactly why this is the case, but a potential explanation is that rhythm is more foundational to the structure of a melody than pith is. This means that when predicting pitch, the underlying rhythmic structure still provides valuable context and a strong basis for the prediction, even if the heuristic is not directly relevant to pitch. However, when predicting duration, pitch information provides significantly less relevant context for the underlying rhythmic structure, and so pitch focused heuristics have a much more pure dilutive effective on duration prediction accuracy, whereas choices about rhythm are unlikely to dilute the most likely pitch options.
 
-\subsubsection{Total Prediction Accuracy}
+\subsection{Total Prediction Accuracy}
 
 The final evaluation of the individual component heuristics is the total prediction accuracy, which is calculated by judging a prediction as correct if both the predicted pitch and time interval are correct. This is evaluated for the improvisation dataset in figure~\ref{fig:individual_total_improv} and for the nottingham dataset in figure~\ref{fig:individual_total_nottingham}.
 
@@ -76,7 +76,7 @@ The final evaluation of the individual component heuristics is the total predict
 
 The total prediction accuracy is the most relevant metric for evaluating the system, as it is the only metric which directly measures the systems ability to predict the next note. Ideally, all component heuristics should perform above unguided predictions for this metric. The results look, as expected, part way inbetween their pitch and duration prediction results relative to the unguided MDRNN. The pitch interval markov model heuristic had the strongest performance for the improvisation dataset, as its pitch prediction accuracy was by far the highest, and its negative effect on duration prediction accuracy was not enough to reduce its overall performance significantly. The repetition heuristic performed the best for the nottingham dataset, due to its very strong pitch prediction accuracy, and neutral effect on duration prediction accuracy. Interestingly, the pitch interval markov model heuristic had the weakest performance of any heuristic for the nottingham dataset, despite being the strongest for the improvisation dataset. This displays how different datasets with different structures, styles, and sizes, can have a significant impact on which heuristics perform best. The only heuristic to underperform unguided predictions was the key and modal heuristic for the improvisation dataset, as it appears that its signficant negative effect on duration prediction accuracy was not outweighed by its positive effect on pitch prediction accuracy. However, this does not mean that it is not a useful component of the combined heuristic, as it could be that the inclusion of other heuristics help to cancel out its negative effects while allowing its positive effects to remain.
 
-\subsubsection{Contribution Assessment}
+\subsection{Heuristic Component Contribution Assessment}
 
 This line of examination leads us to the next evaluation, which is the performance of the combined heuristic when each component heuristic is excluded. This is evaluated for the improvisation dataset in figure~\ref{fig:combined_total_improv} and for the nottingham dataset in figure~\ref{fig:combined_total_nottingham}. The combined heuristic is given its standard heuristic component weights, but with the excluded heuristic given a weight of 0. This shows how much the overall performance of the combined heuristic is affected by each component heuristic, and whether the combination of heuristics makes some component heuristics redundant, or whether they help to balance each others weaknesses.
 
@@ -125,15 +125,15 @@ To evaluate the system from the perspective of a performer, a series of improvis
 
 \begin{table}[th!]
     \centering
-    \begin{tabular}{|l|l|l|l|}
+    \begin{tabular}{|l|l|l|}
         \hline
-        \textbf{Improvisation} & \textbf{Link} & \textbf{Description} & \textbf{Conclusion} \\ \hline
-        Structured MCTS-IMPSY & \href{https://youtu.be/0DQhZ1FaKT4}{Video} & Structured improvisation with MCTS prediction system. & Improved musical coherence and playability. \\ \hline
-        Structured MDRNN-IMPSY & \href{https://youtu.be/6BZlfXHocU8}{Video} & Structured improvisation with MDRNN only prediction system. & Less coherent and less playable than MCTS. \\ \hline
-        Freeform MCTS-IMPSY & \href{https://youtu.be/2op_NtcvT8M}{Video} & Freeform improvisation with MCTS prediction system. & More coherent and interesting than MDRNN. \\ \hline
-        Freeform MDRNN-IMPSY & \href{https://youtu.be/8ncMNEG4Ang}{Video} & Freeform improvisation with MDRNN only prediction system. & Less coherent and less interesting than MCTS. \\ \hline
+        \textbf{Improvisation} & \textbf{Link} & \textbf{Results} \\ \hline
+        Structured MDRNN-IMPSY & \href{https://youtu.be/6BZlfXHocU8}{Video} & Used as a control. \\ \hline
+        Structured MCTS-IMPSY & \href{https://youtu.be/0DQhZ1FaKT4}{Video} & Improved coherence and playability. \\ \hline
+        Freeform MDRNN-IMPSY & \href{https://youtu.be/8ncMNEG4Ang}{Video} & Used as a control. \\ \hline
+        Freeform MCTS-IMPSY & \href{https://youtu.be/2op_NtcvT8M}{Video} & Slightly improved expressiveness. \\ \hline
     \end{tabular}
-    \caption{Summary of conducted improvisations.\label{tab:improv_table}}
+    \caption{Summary of conducted improvisations.\label{tab:improv_summary}}
 \end{table}
 
 \subsection{Structured Improvisations}
