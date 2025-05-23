@@ -125,10 +125,6 @@ class MCTSPredictionTree:
             # Get the heuristic value for this function
             self.heuristic_memories.append(heuristic_function[0](self.initial_memory))
 
-        # TODO: delete
-        print(f"Scale: {self.heuristic_memories[0][1]} Root: {self.heuristic_memories[0][2]} Conformity: {self.heuristic_memories[0][0]}")
-        print("Tempo:", self.heuristic_memories[1])
-
     def set_root(self, new_root_output: np.ndarray) -> None:
         """Set the new root to the child of the current root with the given output"""
         # Find the child with the given output
@@ -504,11 +500,6 @@ class MCTSPredictionTree:
         # Extract winning branch for highlighting
         if has_winning_branch:
             winning_branch = self.get_best_branch()
-            print(f"Winning branch: {winning_branch}")
-            ## Print the heuristic value of the winning branch
-            #import impsy.heuristics as heuristics
-            #heuristic_value = heuristics.rhythmic_consistency_to_value(winning_branch, value=winning_branch[0][0], verbose=True)
-            #print(f"Heuristic value of winning branch: {heuristic_value}")
         else:
             winning_branch = None
         
@@ -523,12 +514,6 @@ class MCTSPredictionTree:
             # If this node has less than min_visits and is not at the root, skip it
             if node.visits < min_visits and depth > 0:
                 return
-            
-            ## Skip root nodes that don't have music output data
-            #if depth < 2 and (node.output is None or len(node.output) < 2):
-            #    for child in node.children:
-            #        plot_node(child, depth + 1, min_visits=min_visits)
-            #    return
                     
             # Extract x (time) and y (pitch) from node output
             # Ensure we have at least 2 elements
@@ -569,9 +554,6 @@ class MCTSPredictionTree:
                         ax.scatter(x, y, depth, s=node_size, c=node_color, edgecolor='black', alpha=0.35)
                     else:
                         ax.scatter(x, y, depth, s=node_size, c=node_color, edgecolor='black', alpha=0.8)
-                
-                # Add text annotation with visits count
-                #ax.text(x, y, depth, f"{node.visits}", fontsize=8)
                 
                 # Draw edge to parent
                 if parent_pos is not None:
@@ -658,8 +640,5 @@ class MCTSPredictionTree:
         
         # Make the graph take up the entire figure space if zoomed
         plt.tight_layout()
-        #if zoomed:
-        #    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-        #    ax.set_box_aspect([1, 1, 1])
             
         return

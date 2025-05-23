@@ -203,7 +203,7 @@ class InteractionServer(object):
         )
         self.call_response_mode = "call"
 
-        # Set up structural variables
+        # Set up structural variables TODO: make these config options
         self.use_prediction_tree = False
         self.rnn_output_memory_size = 45
         self.rnn_output_memory = []
@@ -297,12 +297,15 @@ class InteractionServer(object):
                 start_time = time.time()
                 # If no prediction tree exists, create one.
                 if self.rnn_prediction_tree is None:
+                    # TODO: make most of these parameters config options.
                     self.rnn_prediction_tree = MCTSPredictionTree(
                         root_output=item,
                         initial_lstm_states=neural_net.get_lstm_states(),
                         predict_function=neural_net.generate_gmm, 
                         sample_function=neural_net.sample_gmm,
                         initial_memory=self.rnn_output_memory,
+                        # For improv model use 0.15, 0.05, 1.0, 0.1, 0.2
+                        # For nottingham model use 0.25, 0.3, 0.25, 0.25, 1.0
                         heuristic_functions=[
                             (
                                 lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
@@ -346,95 +349,13 @@ class InteractionServer(object):
                     self.rnn_output_memory.append(tuple(item))
                     if len(self.rnn_output_memory) > self.rnn_output_memory_size:
                         self.rnn_output_memory.pop(0)
-                # If we are using a prediction tree, conduct a search.
-                # For prediction tree figs
-                #self.rnn_prediction_tree = MCTSPredictionTree(
-                #    root_output=item,
-                #    initial_lstm_states=neural_net.get_lstm_states(),
-                #    predict_function=neural_net.generate_gmm, 
-                #    sample_function=neural_net.sample_gmm,
-                #    simulation_depth=3, 
-                #    exploration_weight=0.075,
-                #)
-                # For improv model use 0.15, 0.05, 1.0, 0.1, 0.2
-                # For nottingham model use 0.25, 0.3, 0.25, 0.25, 1.0
+                
                 best_output = self.rnn_prediction_tree.search(
                     memory=self.rnn_output_memory[:-1],
                     time_limit_ms=100
                 )
 
-
-                ############################
-                # FOR PREDICTION TREE FIGS #
-                ############################
-
-                #print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
-                #print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
-                #
-                ## Print the best branch
-                #self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=True, zoomed=True, min_visits=5)
-                ## Folder to save figures
-                #folder = 'prediction_tree_figs'
-                #os.makedirs(folder, exist_ok=True)
-                #
-                ## Find the next available integer filename
-                #existing_files = os.listdir(folder)
-                #existing_numbers = [int(f.split('.')[0]) for f in existing_files if f.split('.')[0].isdigit()]
-                #next_number = max(existing_numbers) + 1 if existing_numbers else 1
-                #
-                ## Save the plot
-                #filename = f"{next_number}.png"
-                #filepath = os.path.join(folder, filename)
-                #plt.savefig(filepath)
-                #plt.show()
-#
-                ## Print guided tree without winning branch
-                #self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=False, zoomed=True, min_visits=5)
-                ## Save the plot
-                #filename = f"{next_number}nobranch.png"
-                #filepath = os.path.join(folder, filename)
-                #plt.savefig(filepath)
-                #plt.show()
-#
-                ## NULL HEURISTIC PLOT
-                #self.rnn_prediction_tree = MCTSPredictionTree(
-                #    root_output=item,
-                #    initial_lstm_states=neural_net.get_lstm_states(),
-                #    predict_function=neural_net.generate_gmm, 
-                #    sample_function=neural_net.sample_gmm,
-                #    simulation_depth=3, 
-                #    exploration_weight=0.075,
-                #)
-                ##print("CREATING TREE WITH ROOT:", item)
-                ##print("INTIAL LSTM STATES:", neural_net.get_lstm_states())
-                ##print("MEMORY:", self.rnn_output_memory[:-1])
-                #best_output = self.rnn_prediction_tree.search(
-                #    memory=self.rnn_output_memory[:-1], 
-                #    heuristic_functions=[heuristics.null_heuristic],
-                #    time_limit_ms=800
-                #)
-                #print("NUM NODES:", self.rnn_prediction_tree.get_num_nodes())
-                #print("NUM BRANCHES:", self.rnn_prediction_tree.get_num_branches())
-                ## Print the best branch
-                #self.rnn_prediction_tree.graph_tree(title="Music Prediction MCTS Visualization", has_winning_branch=False, zoomed=True, min_visits=5)
-                #
-                ## Save the plot
-                #filename = f"{next_number}rand.png"
-                #filepath = os.path.join(folder, filename)
-                #plt.savefig(filepath)
-                #plt.show()
-                #
-                ## Close the plot if you're done
-                #plt.close()
-                ## Wait for 100s
-                #time.sleep(10)
-
-
-
-
-
                 self.rnn_prediction_tree.set_root(best_output[0])
-                print("Time:", best_output[0][0])
                 # End timer
                 end_time = time.time()
                 # Subtract the time taken for search from the output time
@@ -442,17 +363,14 @@ class InteractionServer(object):
                 # If the time taken is negative, set it to 0.01
                 best_output[0][0] = max(best_output[0][0], 0.01)
 
-                
-
+                # Get the output from the best output.
                 rnn_output = best_output[0]
                 neural_net.set_lstm_states(best_output[1])
-                #print(f"Time taken: {end_time - start_time}")
             # Put the output into the playback queue.
             self.rnn_output_buffer.put_nowait(
                 rnn_output
             )  
             self.rnn_prediction_queue.task_done()
-        
         
 
     def monitor_user_action(self):
