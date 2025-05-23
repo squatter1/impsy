@@ -2,9 +2,9 @@ import numpy as np
 from typing import Callable, Tuple
 from collections import defaultdict
 
-#######################################
-# FINAL HEURISTIC PARAMETER FUNCTIONS #
-#######################################
+##############################
+# UNUSED HEURISTIC FUNCTIONS #
+##############################
 
 def parameter_to_heuristic(memory: np.ndarray, branch: np.ndarray, parameter_function: Callable) -> float:
     return -abs(parameter_function(memory) - parameter_function(branch))
@@ -724,7 +724,7 @@ def pitch_consistency(memory: np.ndarray, branch: np.ndarray) -> float:
 def overall_consistency(memory: np.ndarray, branch: np.ndarray) -> float:
     return rhythmic_consistency(branch) + pitch_consistency(branch)
 
-def four_note_repetition(memory: np.ndarray, branch: np.ndarray) -> float: #TODO make this work for more than 2D
+def four_note_repetition(memory: np.ndarray, branch: np.ndarray) -> float:
     branches_mod_4 = [branch[np.arange(len(branch)) % 4 == i] for i in range(4)]
     std_total = 0
     # Subtract the standard deviation of each mod arrays time and pitch, add the overall time and pitch standard deviation for the last 4 elements
