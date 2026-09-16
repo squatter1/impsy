@@ -1,0 +1,13 @@
+# Normalise line endings to LF for all text files
+* text=auto eol=lf
+
+# Binary files
+*.npz binary
+*.tflite binary
+*.h5 binary
+*.keras binary
+*.pdf binary
+*.pptx binary
+*.png binary
+*.wav binary
+*.mid binary
