@@ -803,8 +803,9 @@ def build_heuristic(name: str, weight: float) -> Tuple[Callable, Callable, float
     raise ValueError(f"Unknown heuristic '{name}'. Choose from: {', '.join(HEURISTIC_NAMES)}")
 
 
-def build_heuristics(preset: str, names=None) -> list:
-    """Builds the heuristic tuples for a preset. `names` limits which heuristics are included (default: all)."""
-    weights = HEURISTIC_PRESETS[preset]
+def build_heuristics(preset: str = "improv", names=None, weights=None) -> list:
+    """Builds the heuristic tuples for a preset. `names` limits which heuristics are included (default: all)
+    and `weights` overrides individual preset weights by name."""
+    weights = {**HEURISTIC_PRESETS[preset], **(weights or {})}
     names = list(names) if names else HEURISTIC_NAMES
     return [build_heuristic(name, weights[name]) for name in names]

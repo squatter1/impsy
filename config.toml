@@ -1,12 +1,13 @@
 # The configuration file for IMPSY: Interactive Musical Prediction System
+# Default: 2D melody model over OSC with the prediction tree enabled, no hardware needed. See configs/ for other setups.
 
 # Metadata about this configuration
-title = "Casio CDP-S150 Configuration"
+title = "2D melody over OSC with prediction tree"
 owner = "Scott Howsam"
-description = "Uses USB connection to a Casio CDP-S150 keyboard"
+description = "Predicts single-note melodies over OSC, guided by Monte Carlo tree search with musical heuristics"
 
 # Basic config
-log = true
+log_input = true
 log_predictions = false
 verbose = true
 
@@ -25,17 +26,12 @@ sigmatemp = 0.01
 pitemp = 1.5
 timescale = 1
 
-# MIDI Mapping
-# MIDI Mapping
-[midi]
-in_device = "CASIO USB-MIDI 0"
-out_device = "CASIO USB-MIDI 1"
-input = [
-  ["note_on", 1],  # Note On
-]
-output = [
-  ["note_on", 1],  # Note On
-]
+# Prediction tree configuration (2D only, see configs/default.toml for all options)
+[prediction_tree]
+enabled = true
+preset = "improv" # Heuristic weights, can be: "improv", "nottingham"
+memory_length = 45 # Number of recent notes the heuristics compare against
+time_limit_ms = 100 # Search time per prediction
 
 [osc]
 server_ip = "localhost" # Address of IMPSY

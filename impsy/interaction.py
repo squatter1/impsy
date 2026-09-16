@@ -14,10 +14,6 @@ from pathlib import Path
 from impsy.mcts_prediction_tree import MCTSPredictionTree
 import impsy.heuristics as heuristics
 
-import numpy as np
-import matplotlib.pyplot as plt
-import os
-
 np.set_printoptions(precision=2)
 
 INTERACTION_MODES = {
@@ -121,6 +117,58 @@ def build_network(config: dict):
     return model
 
 
+# Defaults for the [prediction_tree] config block, see configs/default.toml
+PREDICTION_TREE_DEFAULTS = {
+    "enabled": False,
+    "preset": "improv",
+    "heuristics": None,  # None uses all heuristics
+    "memory_length": 45,
+    "time_limit_ms": 100.0,
+    "simulation_depth": 2,
+    "greedy_weight": 0.4,
+    "exploration_weight": 0.1,
+    "progressive_widening_k": 2.5,
+    "progressive_widening_alpha": 0.25,
+    "expansion_samples": 10,
+    "max_progressive_widening": 5,
+}
+
+# Notes of memory needed before the heuristics can be evaluated
+MIN_PREDICTION_TREE_MEMORY = 4
+
+
+def prediction_tree_config(config: dict) -> dict:
+    """Reads the [prediction_tree] config block, filling in defaults and validating names. Only 2D (time, pitch) is supported."""
+    settings = dict(PREDICTION_TREE_DEFAULTS)
+    block = config.get("prediction_tree", {})
+    unknown = sorted(set(block) - set(settings) - {"weights"})
+    if unknown:
+        click.secho(f"Prediction tree: ignoring unknown options {unknown}", fg="yellow")
+    settings.update({key: value for key, value in block.items() if key in settings})
+
+    if settings["preset"] not in heuristics.HEURISTIC_PRESETS:
+        raise ValueError(f"Unknown prediction tree preset '{settings['preset']}'. Choose from: {', '.join(heuristics.HEURISTIC_PRESETS)}")
+    names = list(settings["heuristics"] or heuristics.HEURISTIC_NAMES)
+    unknown_names = [name for name in names if name not in heuristics.HEURISTIC_NAMES]
+    if unknown_names:
+        raise ValueError(f"Unknown prediction tree heuristics {unknown_names}. Choose from: {', '.join(heuristics.HEURISTIC_NAMES)}")
+    settings["heuristics"] = names
+
+    weights = dict(heuristics.HEURISTIC_PRESETS[settings["preset"]])
+    overrides = block.get("weights", {})
+    unknown_weights = [name for name in overrides if name not in heuristics.HEURISTIC_NAMES]
+    if unknown_weights:
+        raise ValueError(f"Unknown prediction tree weights {unknown_weights}. Choose from: {', '.join(heuristics.HEURISTIC_NAMES)}")
+    weights.update(overrides)
+    settings["weights"] = weights
+
+    dimension = config["model"]["dimension"]
+    if settings["enabled"] and dimension != 2:
+        click.secho(f"Prediction tree: only supports dimension 2 (time, pitch), disabling for dimension {dimension}.", fg="yellow")
+        settings["enabled"] = False
+    return settings
+
+
 class InteractionServer(object):
     """Interaction server class. Contains state and functions for the interaction loop."""
 
@@ -203,11 +251,18 @@ class InteractionServer(object):
         )
         self.call_response_mode = "call"
 
-        # Set up structural variables TODO: make these config options
-        self.use_prediction_tree = False
-        self.rnn_output_memory_size = 45
+        # Set up prediction tree from config
+        self.tree_config = prediction_tree_config(self.config)
+        self.use_prediction_tree = self.tree_config["enabled"]
+        self.rnn_output_memory_size = self.tree_config["memory_length"]
         self.rnn_output_memory = []
         self.rnn_prediction_tree = None
+        self.tree_heuristics = []
+        if self.use_prediction_tree:
+            self.tree_heuristics = heuristics.build_heuristics(
+                self.tree_config["preset"], self.tree_config["heuristics"], self.tree_config["weights"]
+            )
+            click.secho(f"Config: prediction tree enabled with {self.tree_config['preset']} heuristics: {', '.join(self.tree_config['heuristics'])}", fg="blue")
 
     def send_back_values(self, output_values):
         """sends back sound commands to the MIDI/OSC/WebSockets outputs"""
@@ -289,58 +344,30 @@ class InteractionServer(object):
         ):
             # Get the next item from the prediction queue.
             item = self.rnn_prediction_queue.get(block=True, timeout=None)
-            if not self.use_prediction_tree:
-                # If we aren't use a prediction tree, just predict the next item.
+            if not self.use_prediction_tree or len(self.rnn_output_memory) < MIN_PREDICTION_TREE_MEMORY:
+                # If we aren't using a prediction tree (or don't have enough memory yet), just predict the next item.
                 rnn_output = neural_net.generate(item)
             else:
                 # Start the timer
                 start_time = time.time()
                 # If no prediction tree exists, create one.
                 if self.rnn_prediction_tree is None:
-                    # TODO: make most of these parameters config options.
+                    tree_config = self.tree_config
                     self.rnn_prediction_tree = MCTSPredictionTree(
                         root_output=item,
                         initial_lstm_states=neural_net.get_lstm_states(),
-                        predict_function=neural_net.generate_gmm, 
+                        predict_function=neural_net.generate_gmm,
                         sample_function=neural_net.sample_gmm,
                         initial_memory=self.rnn_output_memory,
-                        # For improv model use 0.15, 0.05, 1.0, 0.1, 0.2
-                        # For nottingham model use 0.25, 0.3, 0.25, 0.25, 1.0
-                        heuristic_functions=[
-                            (
-                                lambda x: heuristics.key_and_modal_memory(x, min_key_conformity=0.7),
-                                lambda x, y, z: heuristics.key_and_modal_conformity_heuristic(x, y, z, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15),
-                                0.15
-                            ),
-                            (
-                                heuristics.tempo_and_swing_memory, 
-                                lambda x, y, z: heuristics.tempo_and_swing_heuristic(x, y, z, max_tempo_deviation=0.08),
-                                0.05
-                            ),
-                            (
-                                lambda x: heuristics.interval_markov_memory(x, order=1),
-                                lambda x, y, z: heuristics.interval_markov_heuristic(x, y, z),
-                                1.0
-                            ),
-                            (
-                                lambda x: heuristics.time_multiple_markov_memory(x, order=1),
-                                lambda x, y, z: heuristics.time_multiple_markov_heuristic(x, y, z),
-                                0.1
-                            ),
-                            (
-                                lambda x: heuristics.repetition_markov_memory(x, order=2),
-                                lambda x, y, z: heuristics.repetition_markov_heuristic(x, y, z),
-                                0.2
-                            ),
-                        ],
-                        simulation_depth=2,
-                        greedy_weight=0.4,
-                        exploration_weight=0.1,
-                        progressive_widening_k=2.5,
-                        progressive_widening_alpha=0.25,
+                        heuristic_functions=self.tree_heuristics,
+                        simulation_depth=tree_config["simulation_depth"],
+                        greedy_weight=tree_config["greedy_weight"],
+                        exploration_weight=tree_config["exploration_weight"],
+                        progressive_widening_k=tree_config["progressive_widening_k"],
+                        progressive_widening_alpha=tree_config["progressive_widening_alpha"],
                         min_originality_distances=np.array([0.08, None]),
-                        expansion_samples=10,
-                        max_progressive_widening=5,
+                        expansion_samples=tree_config["expansion_samples"],
+                        max_progressive_widening=tree_config["max_progressive_widening"],
                         snap_dp=[None, 2],
                     )
                 else:
@@ -352,7 +379,7 @@ class InteractionServer(object):
                 
                 best_output = self.rnn_prediction_tree.search(
                     memory=self.rnn_output_memory[:-1],
-                    time_limit_ms=100
+                    time_limit_ms=self.tree_config["time_limit_ms"],
                 )
 
                 self.rnn_prediction_tree.set_root(best_output[0])

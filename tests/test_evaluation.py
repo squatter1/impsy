@@ -61,6 +61,8 @@ def test_heuristic_presets_build():
         for memory_fn, heuristic_fn, weight in built:
             assert callable(memory_fn) and callable(heuristic_fn) and weight > 0
     assert len(heuristics.build_heuristics("improv", ["key_and_modal"])) == 1
+    overridden = heuristics.build_heuristics("improv", ["key_and_modal"], weights={"key_and_modal": 0.9})
+    assert overridden[0][2] == 0.9
     with pytest.raises(ValueError):
         heuristics.build_heuristic("nope", 1.0)
 

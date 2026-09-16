@@ -25,6 +25,30 @@ sigmatemp = 0.01
 pitemp = 1
 timescale = 1
 
+# Prediction tree configuration (MCTS over MDRNN predictions, 2D only)
+[prediction_tree]
+enabled = false
+preset = "improv" # Heuristic weights, can be: "improv", "nottingham"
+heuristics = [ # Heuristics to use, omit for all
+  "key_and_modal",
+  "tempo_and_swing",
+  "interval_markov",
+  "time_multiple_markov",
+  "repetition_markov",
+]
+memory_length = 45 # Number of recent notes the heuristics compare against
+time_limit_ms = 100 # Search time per prediction
+simulation_depth = 2 # Notes simulated past each node when scoring
+greedy_weight = 0.4 # UCT weight of best value vs average value
+exploration_weight = 0.1 # UCT exploration weight
+progressive_widening_k = 2.5 # Max children = k * visits^alpha
+progressive_widening_alpha = 0.25
+expansion_samples = 10 # Samples drawn when adding a child
+max_progressive_widening = 5 # Failed widening attempts before a node stops widening
+
+[prediction_tree.weights] # Optional overrides of preset weights
+# key_and_modal = 0.15
+
 # MIDI Mapping
 [midi]
 in_device = "X-TOUCH"

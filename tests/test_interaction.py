@@ -1,5 +1,6 @@
 from impsy import interaction
 from impsy import utils
+from impsy import heuristics
 import pytest
 from pathlib import Path
 import numpy as np
@@ -86,3 +87,58 @@ def test_dense_callback(interaction_server, default_dimension):
 def test_send_values(interaction_server, default_dimension):
     values = np.random.rand(default_dimension - 1)
     interaction_server.send_back_values(values)
+
+
+## prediction tree configuration
+
+
+def test_prediction_tree_config_defaults():
+    """No [prediction_tree] block means the tree is off with every default filled in."""
+    settings = interaction.prediction_tree_config({"model": {"dimension": 2}})
+    assert settings["enabled"] is False
+    assert settings["preset"] == "improv"
+    assert settings["heuristics"] == heuristics.HEURISTIC_NAMES
+    assert settings["weights"] == heuristics.HEURISTIC_PRESETS["improv"]
+    assert settings["memory_length"] == 45
+    assert settings["time_limit_ms"] == 100.0
+
+
+def test_prediction_tree_config_overrides():
+    config = {
+        "model": {"dimension": 2},
+        "prediction_tree": {
+            "enabled": True,
+            "preset": "nottingham",
+            "heuristics": ["key_and_modal", "interval_markov"],
+            "time_limit_ms": 50,
+            "weights": {"key_and_modal": 0.5},
+        },
+    }
+    settings = interaction.prediction_tree_config(config)
+    assert settings["enabled"] is True
+    assert settings["heuristics"] == ["key_and_modal", "interval_markov"]
+    assert settings["time_limit_ms"] == 50
+    assert settings["weights"]["key_and_modal"] == 0.5
+    assert settings["weights"]["tempo_and_swing"] == heuristics.HEURISTIC_PRESETS["nottingham"]["tempo_and_swing"]
+    built = heuristics.build_heuristics(settings["preset"], settings["heuristics"], settings["weights"])
+    assert [weight for _, _, weight in built] == [0.5, 0.25]
+
+
+def test_prediction_tree_config_requires_dimension_two():
+    config = {"model": {"dimension": 9}, "prediction_tree": {"enabled": True}}
+    assert interaction.prediction_tree_config(config)["enabled"] is False
+
+
+def test_prediction_tree_config_rejects_unknown_names():
+    with pytest.raises(ValueError):
+        interaction.prediction_tree_config({"model": {"dimension": 2}, "prediction_tree": {"preset": "jazz"}})
+    with pytest.raises(ValueError):
+        interaction.prediction_tree_config({"model": {"dimension": 2}, "prediction_tree": {"heuristics": ["nope"]}})
+    with pytest.raises(ValueError):
+        interaction.prediction_tree_config({"model": {"dimension": 2}, "prediction_tree": {"weights": {"nope": 1.0}}})
+
+
+def test_default_config_file_has_prediction_tree(default_config):
+    settings = interaction.prediction_tree_config(default_config)
+    assert settings["enabled"] is False  # default.toml is 9D, the tree only applies to 2D
+    assert settings["heuristics"] == heuristics.HEURISTIC_NAMES
