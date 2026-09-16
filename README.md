@@ -1,10 +1,56 @@
-# IMPSY: The Interactive Musical Predictive System
+# MCTS-IMPSY: Monte Carlo Tree Search for musical prediction
 
-![MIT License](https://img.shields.io/github/license/cpmpercussion/keras-mdn-layer.svg?style=flat)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.2580176.svg)](https://doi.org/10.5281/zenodo.2580176)
-[![Install and run IMPSY](https://github.com/cpmpercussion/impsy/actions/workflows/python-app.yml/badge.svg)](https://github.com/cpmpercussion/impsy/actions/workflows/python-app.yml)
-[![Coverage Status](https://coveralls.io/repos/github/cpmpercussion/impsy/badge.svg)](https://coveralls.io/github/cpmpercussion/impsy)
-[![PyPI - Version](https://img.shields.io/pypi/v/IMPSY)](https://pypi.org/project/impsy/)
+![MIT License](https://img.shields.io/github/license/squatter1/impsy.svg?style=flat)
+[![Install and run IMPSY](https://github.com/squatter1/impsy/actions/workflows/python-app.yml/badge.svg)](https://github.com/squatter1/impsy/actions/workflows/python-app.yml)
+
+This is a fork of [IMPSY](https://github.com/cpmpercussion/impsy), Charles Martin's Interactive Musical Prediction System, which predicts the next note a performer will play using a mixture density recurrent neural network (MDRNN). For my honours research project I added a Monte Carlo tree search (MCTS) layer with musical heuristics that guides the network's predictions, along with the evaluation harness and results below. The full write-up is in [docs/honours-report.pdf](docs/honours-report.pdf) and [docs/honours-poster.pdf](docs/honours-poster.pdf) (also as [pptx](docs/honours-poster.pptx)); the LaTeX source and its history are on the [`report` branch](https://github.com/squatter1/impsy/tree/report). The original IMPSY documentation follows in the [second half of this README](#impsy-the-interactive-musical-predictive-system).
+
+![MDRNN-IMPSY compared with MCTS-IMPSY](images/mdrnn_vs_mcts.png)
+
+## AI Usage Statement
+This repository used **MINIMAL** LLM assistance for its original development, and **MODERATE** LLM assistance for repository cleanup and publication.
+
+## What I added
+
+- `impsy/mcts_prediction_tree.py`: an MCTS over MDRNN predictions with UCT selection, progressive widening with originality constraints, tree reuse between notes, and a 3D tree visualiser.
+- `impsy/heuristics.py`: five musical heuristics that score candidate continuations against the performer's recent playing, plus weight presets for two corpora.
+- `impsy/interaction.py`: the tree integrated into IMPSY's live interaction loop, switched on and tuned from `config.toml`.
+- `impsy/mdrnn.py`: the inference models split into separate GMM prediction and sampling steps with explicit LSTM state, so the tree can branch from any node.
+- `impsy/evaluation.py`: an `evaluate` command comparing tree-guided and plain MDRNN prediction accuracy on logged performances.
+- `evaluation/`: the 15 trained models, logs and datasets used in the evaluation, the qualitative session transcripts, and the scripts that prepared the data and produced the figures. See [evaluation/README.md](evaluation/README.md).
+- `tests/`: tests for the tree search, the heuristics and the evaluation harness.
+
+
+## Running it
+
+Install as described in the [original instructions](#installation) below, then run with the default `config.toml`, which is a 2D melody model over OSC with the tree enabled and needs no hardware:
+
+    poetry run ./start_impsy.py run
+
+Send notes as `/interface <pitch>` (0 to 1, MIDI note / 127) to UDP port 5000 and listen for `/prediction <pitch>` on port 5002. `configs/casio-cdp-s150.toml` is the same setup for a USB MIDI keyboard.
+
+The tree is configured in the `[prediction_tree]` block; `configs/default.toml` documents every option:
+
+```toml
+[prediction_tree]
+enabled = true
+preset = "improv" # or "nottingham"
+memory_length = 45
+time_limit_ms = 100
+```
+
+Examples of evaluation commands:
+
+    poetry run ./start_impsy.py evaluate                                  # all heuristics, improv preset
+    poetry run ./start_impsy.py evaluate -H repetition_markov             # one heuristic
+    poetry run ./start_impsy.py evaluate --match pitch                    # pitch accuracy only
+    poetry run ./start_impsy.py evaluate -M evaluation/models_nottingham -L <nottingham logs> -P nottingham
+
+Note that the models in `evaluation/` were trained with a scale factor of 12 (`SCALE_FACTOR` in `impsy/mdrnn.py`), which is the current setting. The original IMPSY models in `models/` were trained with 10 and need that value to give sensible output.
+
+---
+
+# IMPSY: The Interactive Musical Predictive System
 
 ![Predictive Musical Interaction](https://github.com/cpmpercussion/impsy/raw/main/images/predictive_interaction.png)
 
