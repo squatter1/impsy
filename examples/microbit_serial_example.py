@@ -54,7 +54,6 @@ def receive_data():
 
 def display_values():
     global last_displayed_values
-    global last_values
     if len(last_values) == 3:
         display_values = [display_pixel_mapping(x) for x in last_values]
         if display_values != last_displayed_values:
@@ -94,8 +93,6 @@ def play_freqs(freqs):
         # print("played: " + str(freqs))
 
 def play_values():
-    global last_played_freqs
-    global last_values
     freqs = [0, 0, 0]
     if len(last_values) == 3:
         freqs = [float_to_freq(x) for x in last_values]
