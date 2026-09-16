@@ -59,7 +59,7 @@ cover/
 
 # Django stuff:
 *.log
-!eval_logs/*.log
+!evaluation/logs/*.log
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
@@ -164,14 +164,14 @@ cython_debug/
 
 checkpoint
 output-logs
-models
-logs
-datasets
+/models
+/logs
+/datasets
 
 *.hdf5
 *.no
 *.npz
-!eval_datasets/*.npz
+!evaluation/datasets/*.npz
 *.csv
 
 experiment_data
@@ -179,5 +179,6 @@ experiment_data
 # python env
 python_311_env_impsy/
 
-# prediction_tree_figs
+# generated figures
 prediction_tree_figs/
+evaluation/figures/

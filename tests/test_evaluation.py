@@ -7,7 +7,7 @@ import pytest
 
 
 def test_model_params_from_filename():
-    params = evaluation.model_params_from_filename(Path("eval_models/2-musicMDRNN-dim2-layers2-units64-mixtures5-scale12.tflite"))
+    params = evaluation.model_params_from_filename(Path("evaluation/models/2-musicMDRNN-dim2-layers2-units64-mixtures5-scale12.tflite"))
     assert params == {"dim": 2, "layers": 2, "units": 64, "mixtures": 5}
     with pytest.raises(ValueError):
         evaluation.model_params_from_filename(Path("models/unnamed.tflite"))

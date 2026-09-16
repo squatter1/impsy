@@ -195,9 +195,9 @@ class MCTSEvaluator:
 
 
 @click.command(name="evaluate")
-@click.option("-M", "--models-dir", default="eval_models", show_default=True, type=click.Path(file_okay=False),
+@click.option("-M", "--models-dir", default="evaluation/models", show_default=True, type=click.Path(file_okay=False),
               help="Directory of .tflite models. A single model is evaluated against every log; several models pair with logs by leading number.")
-@click.option("-L", "--logs-dir", default="eval_logs", show_default=True, type=click.Path(file_okay=False),
+@click.option("-L", "--logs-dir", default="evaluation/logs", show_default=True, type=click.Path(file_okay=False),
               help="Directory of 2D IMPSY .log files.")
 @click.option("-P", "--preset", default="improv", show_default=True, type=click.Choice(list(heuristics.HEURISTIC_PRESETS)),
               help="Heuristic weights tuned for a corpus.")
