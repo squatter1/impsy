@@ -401,7 +401,7 @@ class OSCServer(IOServer):
 
     def send(self, output_values) -> None:
         try:
-            self.osc_client.send_message(OSCServer.OUTPUT_MESSAGE_ADDRESS, [0.50])
+            self.osc_client.send_message(OSCServer.OUTPUT_MESSAGE_ADDRESS, output_values)
         except Exception as e:
             click.secho(f"OSC sending failed: {e}", fg="red")
 
@@ -470,11 +470,6 @@ class MIDIServer(IOServer):
 
             try:
                 index, value = midi_message_to_index_value(message, self.midi_input_mapping)
-                # Print the note as a debug note
-                notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-                octave = message.note // 12 - 1
-                note = notes[message.note % 12]
-                print(f"Note: {note}{octave}")
                 self.callback(index, value)
             except ValueError as e:
                 # error when handling the MIDI message
