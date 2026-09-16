@@ -10,7 +10,6 @@ Models, data and scripts used to evaluate MCTS-guided prediction against the pla
 - `logs/`: 15 IMPSY logs of keyboard improvisations, one note per line as `timestamp,interface,pitch`.
 - `datasets/`: the `.npz` training datasets used to train each model.
 - `models_nottingham/`: one 128-unit model trained on melodies from the [Nottingham dataset](https://ifdo.ca/~seymour/nottingham/nottingham.html). The logs are not included, generate them with `scripts/convert_midi_to_logs.py` and select a subset with `scripts/select_eval_logs.py`.
-- `models_shortened/`: five models trained on shortened logs, kept for reference. The shortened logs are not included.
 - `playbacks/`: terminal transcripts of the qualitative sessions comparing MCTS and MDRNN in free and structured improvisation.
 - `scripts/`: figure generation and data preparation, see below.
 
