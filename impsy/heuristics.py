@@ -739,3 +739,72 @@ def four_note_repetition(memory: np.ndarray, branch: np.ndarray) -> float:
     std_total += np.std(branch[-4:, 0])
     std_total += np.std(branch[-4:, 1])
     return std_total
+
+
+#####################
+# HEURISTIC PRESETS #
+#####################
+
+# Weights tuned per corpus: "improv" for the free-improvisation eval models, "nottingham" for the Nottingham folk model.
+HEURISTIC_PRESETS = {
+    "improv": {
+        "key_and_modal": 0.15,
+        "tempo_and_swing": 0.05,
+        "interval_markov": 1.0,
+        "time_multiple_markov": 0.1,
+        "repetition_markov": 0.2,
+    },
+    "nottingham": {
+        "key_and_modal": 0.25,
+        "tempo_and_swing": 0.3,
+        "interval_markov": 0.25,
+        "time_multiple_markov": 0.25,
+        "repetition_markov": 1.0,
+    },
+}
+
+HEURISTIC_NAMES = list(HEURISTIC_PRESETS["improv"].keys())
+
+
+def build_heuristic(name: str, weight: float) -> Tuple[Callable, Callable, float]:
+    """Returns the (memory function, heuristic function, weight) tuple that MCTSPredictionTree expects for a named heuristic."""
+    if name == "key_and_modal":
+        return (
+            lambda memory: key_and_modal_memory(memory, min_key_conformity=0.7),
+            lambda memory_tuple, branch, multiplier: key_and_modal_conformity_heuristic(
+                memory_tuple, branch, multiplier, min_mode_conformity=0.25, mode_divisor=6.0, mode_max=0.15
+            ),
+            weight,
+        )
+    if name == "tempo_and_swing":
+        return (
+            tempo_and_swing_memory,
+            lambda memory_tuple, branch, multiplier: tempo_and_swing_heuristic(memory_tuple, branch, multiplier, max_tempo_deviation=0.08),
+            weight,
+        )
+    if name == "interval_markov":
+        return (
+            lambda memory: interval_markov_memory(memory, order=1),
+            interval_markov_heuristic,
+            weight,
+        )
+    if name == "time_multiple_markov":
+        return (
+            lambda memory: time_multiple_markov_memory(memory, order=1),
+            time_multiple_markov_heuristic,
+            weight,
+        )
+    if name == "repetition_markov":
+        return (
+            lambda memory: repetition_markov_memory(memory, order=2),
+            repetition_markov_heuristic,
+            weight,
+        )
+    raise ValueError(f"Unknown heuristic '{name}'. Choose from: {', '.join(HEURISTIC_NAMES)}")
+
+
+def build_heuristics(preset: str, names=None) -> list:
+    """Builds the heuristic tuples for a preset. `names` limits which heuristics are included (default: all)."""
+    weights = HEURISTIC_PRESETS[preset]
+    names = list(names) if names else HEURISTIC_NAMES
+    return [build_heuristic(name, weights[name]) for name in names]

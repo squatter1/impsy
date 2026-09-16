@@ -7,6 +7,7 @@ from .interaction import run
 from .tflite_converter import convert_tflite
 from .web_interface import webui
 from .tests import test_mdrnn
+from .evaluation import evaluate
 
 
 @click.group()
@@ -22,5 +23,6 @@ def main():
     cli.add_command(test_mdrnn)
     cli.add_command(convert_tflite)
     cli.add_command(webui)
+    cli.add_command(evaluate)
     # runs the command line interface
     cli()
