@@ -26,7 +26,7 @@ class MCTSNode:
         # MCTS specific attributes
         self.visits = 0
         self.value = 0.0
-        self.best_value = 0.0  # Best found heuristic value of any path from this node
+        self.best_value = -math.inf  # Best found heuristic value of any path from this node
         self.failed_progressive_widening = 0  # Count of failed progressive widening attempts, too many leads to assumption all valid unique children have been added
 
     def delete_children(self, exception: Optional['MCTSNode'] = None) -> None:

@@ -76,11 +76,15 @@ class Scale:
         # Check for augmented triad
         elif np.isin(np.array([0, 4, 8]) + mode, self.notes).all():
             root_triad = np.array([0, 4, 8]) + mode
-        # If no triad is found, return 0
+        else:
+            # No triad can be built on this mode, so it cannot be evaluated
             return -1
         in_root_triad = np.isin(branch, root_triad)
         # Calculate the portion of notes in the scale that are also in the root triad as k_t
         k_t = np.sum(in_root_triad) / np.sum(in_scale)
+        if self.n == 3:
+            # A three-note scale is its own triad, so every in-scale note conforms (avoids division by zero below)
+            return 1.0
         # Adjust conformity value based on the number of notes in the scale = (n*k_t-3)/(n-3)
         return (self.n * k_t - 3) / (self.n - 3)
     
